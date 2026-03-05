@@ -15,7 +15,6 @@ err()  { echo -e "${RED}[✗]${NC} $1" >&2; }
 ask()  { echo -en "${BLUE}[?]${NC} $1"; }
 
 CLAWAPP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
 
 # ── Step 1: Prerequisites ──────────────────────────────────────────────────
 
@@ -45,151 +44,52 @@ install_docker() {
     log "Docker installed"
 }
 
-install_node() {
-    if command -v node &>/dev/null; then
-        NODE_VERSION=$(node --version | sed 's/v//' | cut -d. -f1)
-        if [[ "$NODE_VERSION" -ge 18 ]]; then
-            log "Node.js already installed: $(node --version)"
-            return
-        fi
-    fi
-
-    log "Installing Node.js 22..."
-    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - >/dev/null 2>&1
-    sudo apt-get install -y -qq nodejs >/dev/null 2>&1
-    log "Node.js installed: $(node --version)"
-}
-
 check_ports() {
-    local failed=0
-    for port in 8080 18789; do
-        if ss -tlnp 2>/dev/null | grep -q ":${port} "; then
-            warn "Port $port is already in use"
-            failed=1
-        fi
-    done
-    if [[ $failed -eq 1 ]]; then
-        ask "Ports in use. Continue anyway? (y/N) "
+    if ss -tlnp 2>/dev/null | grep -q ":8080 "; then
+        warn "Port 8080 is already in use"
+        ask "Continue anyway? (y/N) "
         read -r reply
         [[ "$reply" =~ ^[Yy] ]] || exit 1
     fi
 }
 
-# ── Step 2: OpenClaw ──────────────────────────────────────────────────────
+# ── Step 2: OpenClaw Connection Details ──────────────────────────────────
 
-install_openclaw() {
-    if command -v openclaw &>/dev/null; then
-        log "OpenClaw already installed: $(openclaw --version 2>&1 | head -1)"
+ask_openclaw_details() {
+    echo ""
+    echo -e "${BOLD}OpenClaw Gateway Connection${NC}"
+    echo "ClawApp connects to your existing OpenClaw gateway."
+    echo "You need the gateway URL and auth token from your OpenClaw setup."
+    echo ""
+
+    # Gateway URL
+    ask "OpenClaw gateway URL [http://localhost:18789]: "
+    read -r OPENCLAW_URL
+    if [[ -z "$OPENCLAW_URL" ]]; then
+        OPENCLAW_URL="http://localhost:18789"
+    fi
+
+    # Gateway token
+    echo ""
+    echo "Your gateway token is in ~/.openclaw/openclaw.json under gateway.auth.token"
+    ask "OpenClaw gateway auth token: "
+    read -r GATEWAY_TOKEN
+
+    if [[ -z "$GATEWAY_TOKEN" ]]; then
+        err "Gateway token is required."
+        exit 1
+    fi
+
+    # Quick connectivity check
+    echo ""
+    log "OpenClaw URL: $OPENCLAW_URL"
+    log "Gateway token: ${GATEWAY_TOKEN:0:12}..."
+
+    if curl -sf --max-time 5 "$OPENCLAW_URL" >/dev/null 2>&1; then
+        log "OpenClaw gateway is reachable"
     else
-        log "Installing OpenClaw..."
-        npm install -g openclaw >/dev/null 2>&1
-        log "OpenClaw installed: $(openclaw --version 2>&1 | head -1)"
+        warn "Could not reach $OPENCLAW_URL — ClawApp will retry on startup"
     fi
-}
-
-configure_openclaw() {
-    # Generate gateway auth token
-    GATEWAY_TOKEN=$(openssl rand -hex 24)
-
-    if [[ -f "$OPENCLAW_CONFIG" ]]; then
-        warn "OpenClaw config already exists at $OPENCLAW_CONFIG"
-        ask "Overwrite? (y/N) "
-        read -r reply
-        if [[ ! "$reply" =~ ^[Yy] ]]; then
-            # Read existing token from config
-            GATEWAY_TOKEN=$(python3 -c "
-import json
-with open('$OPENCLAW_CONFIG') as f:
-    c = json.load(f)
-print(c.get('gateway',{}).get('auth',{}).get('token',''))
-" 2>/dev/null || echo "$GATEWAY_TOKEN")
-            log "Keeping existing config (gateway token: ${GATEWAY_TOKEN:0:12}...)"
-            return
-        fi
-    fi
-
-    mkdir -p "$HOME/.openclaw"
-
-    cat > "$OPENCLAW_CONFIG" << OCEOF
-{
-  "gateway": {
-    "port": 18789,
-    "bind": "lan",
-    "auth": {
-      "mode": "token",
-      "token": "$GATEWAY_TOKEN"
-    },
-    "controlUi": {
-      "allowedOrigins": [
-        "http://localhost:18789",
-        "http://127.0.0.1:18789",
-        "http://172.0.0.0/8",
-        "http://host.docker.internal:18789"
-      ]
-    }
-  },
-  "agents": {
-    "defaults": {
-      "model": {
-        "primary": "anthropic/claude-sonnet-4-5"
-      }
-    }
-  }
-}
-OCEOF
-
-    log "OpenClaw config written to $OPENCLAW_CONFIG"
-
-    # Anthropic auth token
-    echo ""
-    echo -e "${BOLD}ClawApp uses Claude as its AI backend.${NC}"
-    echo "You need a Claude authentication token from your Anthropic account."
-    echo ""
-    echo "To get your token:"
-    echo "  1. Go to https://console.anthropic.com"
-    echo "  2. Create an API key"
-    echo "  3. Copy the key (starts with sk-ant-...)"
-    echo ""
-    ask "Paste your Anthropic API key: "
-    read -r ANTHROPIC_KEY
-
-    if [[ -n "$ANTHROPIC_KEY" ]]; then
-        mkdir -p "$HOME/.openclaw/agents/main/agent"
-        cat > "$HOME/.openclaw/agents/main/agent/auth-profiles.json" << AUTHEOF
-{
-  "activeProfile": "anthropic:manual",
-  "profiles": {
-    "anthropic:manual": {
-      "provider": "anthropic",
-      "type": "manual",
-      "key": "$ANTHROPIC_KEY"
-    }
-  }
-}
-AUTHEOF
-        log "Anthropic auth token saved"
-    else
-        warn "No API key provided — Maddie will send stub responses until configured."
-    fi
-}
-
-start_openclaw() {
-    # Use OpenClaw's built-in service installer
-    log "Installing OpenClaw gateway service..."
-    openclaw gateway install --bind lan --auth token 2>/dev/null || true
-    openclaw gateway start 2>/dev/null || true
-
-    # Wait for gateway to be reachable
-    local retries=10
-    while [[ $retries -gt 0 ]]; do
-        if openclaw status 2>&1 | grep -qi "running\|listening\|ok"; then
-            log "OpenClaw gateway is running"
-            return
-        fi
-        sleep 2
-        retries=$((retries - 1))
-    done
-    warn "OpenClaw gateway may not be running yet. Check: openclaw status"
 }
 
 # ── Step 3: ClawApp Server ────────────────────────────────────────────────
@@ -204,6 +104,14 @@ deploy_clawapp() {
         exit 1
     fi
 
+    # Determine OpenClaw URL for Docker container
+    # If pointing to localhost, rewrite to host.docker.internal so the container can reach it
+    DOCKER_OPENCLAW_URL="$OPENCLAW_URL"
+    if [[ "$OPENCLAW_URL" == *"localhost"* || "$OPENCLAW_URL" == *"127.0.0.1"* ]]; then
+        DOCKER_OPENCLAW_URL=$(echo "$OPENCLAW_URL" | sed 's/localhost/host.docker.internal/; s/127\.0\.0\.1/host.docker.internal/')
+        log "Rewriting localhost → host.docker.internal for Docker networking"
+    fi
+
     # Generate docker-compose.yml
     cat > docker-compose.yml << DCEOF
 services:
@@ -215,7 +123,7 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       - DATABASE_URL=postgres://clawapp:clawapp@db:5432/clawapp
-      - OPENCLAW_URL=http://host.docker.internal:18789
+      - OPENCLAW_URL=${DOCKER_OPENCLAW_URL}
       - OPENCLAW_TOKEN=${GATEWAY_TOKEN}
       - DATA_DIR=/data
     volumes:
@@ -402,8 +310,6 @@ print_connection_details() {
     echo -e "${BOLD}╚══════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo "Useful commands:"
-    echo "  openclaw status              # Check OpenClaw gateway"
-    echo "  openclaw logs                # View AI logs"
     echo "  docker compose logs clawapp  # View server logs"
     echo "  docker compose restart       # Restart server"
     echo ""
@@ -414,21 +320,19 @@ print_connection_details() {
 main() {
     echo ""
     echo -e "${BOLD}ClawApp Self-Hosted Setup${NC}"
-    echo "This will install and configure everything you need."
+    echo "Connect your ClawApp iOS app to your OpenClaw gateway."
     echo ""
 
     # Initialize variables
     API_TOKEN=""
     SERVER_URL=""
     GATEWAY_TOKEN=""
+    OPENCLAW_URL=""
 
     check_os
-    check_ports
+    ask_openclaw_details
     install_docker
-    install_node
-    install_openclaw
-    configure_openclaw
-    start_openclaw
+    check_ports
     deploy_clawapp
     setup_tunnel
     print_connection_details
