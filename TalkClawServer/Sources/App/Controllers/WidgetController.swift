@@ -74,8 +74,36 @@ struct WidgetController: RouteCollection {
             try? await req.sandboxClient.register(widgetId: widget.id!.uuidString, routes: sandboxRoutes)
         }
 
-        // Broadcast widget injection event
+        // Create widget message in the originating chat session
         let payload = widget.toPayload()
+        if let sessionId = createReq.sessionId {
+            do {
+                let widgetMsg = try Message(
+                    sessionId: sessionId,
+                    role: .assistant,
+                    content: .widget(payload)
+                )
+                try await widgetMsg.save(on: req.db)
+
+                // Update session timestamp
+                if let session = try await Session.find(sessionId, on: req.db) {
+                    session.lastMessageAt = Date()
+                    try await session.save(on: req.db)
+                }
+
+                // Send complete message to subscribed clients
+                let msgDTO = try widgetMsg.toDTO()
+                await req.application.clientWSManager.sendToSession(
+                    .chatComplete(msgDTO),
+                    sessionId: sessionId,
+                    logger: req.logger
+                )
+            } catch {
+                req.logger.error("Failed to create widget message: \(error)")
+            }
+        }
+
+        // Also broadcast widget injection event for dashboard refresh
         await req.application.clientWSManager.broadcast(.widgetInjected(payload))
 
         return widget.toDTO()

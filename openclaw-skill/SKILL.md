@@ -79,6 +79,7 @@ For best results on mobile:
 1. **Check the Widget Library first** — call `GET /api/v1/widgets` to see existing widgets
 2. If a similar widget exists, **update it** via PATCH instead of creating a duplicate
 3. Plan the widget: what data, what UI, what backend routes needed
+4. **Extract the session UUID** from the session key (`talkclaw-{uuid}`) — you'll need it for the `sessionId` field
 
 ### Widget File Structure
 
@@ -170,7 +171,7 @@ Render variables are NOT secrets. Anything requiring credentials must live in a 
 | Method | Path | Body | Description |
 |--------|------|------|-------------|
 | GET | /api/v1/widgets | — | List all widgets. `?surface=inline\|dashboard` filter |
-| POST | /api/v1/widgets | `{ slug, title, description, surface, html }` | Create widget. Returns full WidgetDTO |
+| POST | /api/v1/widgets | `{ slug, title, description, surface, html, sessionId }` | Create widget + inline message. `sessionId` required for chat delivery |
 | GET | /api/v1/widgets/:slug | — | Fetch full widget including html and render_vars |
 | PATCH | /api/v1/widgets/:slug | `{ sections: { "TC:SCRIPT": "..." } }` | Update specific sections only |
 | DELETE | /api/v1/widgets/:slug | — | Delete widget and all related data |
@@ -185,9 +186,25 @@ POST /api/v1/widgets
   "title": "Lead Tracker",
   "description": "Shows current lead count and conversion rates",
   "surface": "inline",
-  "html": "<!DOCTYPE html>..."
+  "html": "<!DOCTYPE html>...",
+  "sessionId": "UUID-of-the-chat-session"
 }
 ```
+
+**IMPORTANT — `sessionId` and inline delivery:**
+
+You MUST include `sessionId` when creating a widget. This is how the widget appears inline in the user's chat:
+
+1. You receive the session key as `talkclaw-{uuid}` in the `chat.send` RPC
+2. Extract the UUID: e.g. `talkclaw-a1b2c3d4-...` → `a1b2c3d4-...`
+3. Pass it as `sessionId` in the POST body
+4. The server automatically:
+   - Saves the widget
+   - Creates a `widget` message in that session (appears as an interactive card in the chat)
+   - Sends it to the iOS app via WebSocket in real-time
+5. The widget renders inline as a glass card with a WKWebView — the user sees and interacts with it immediately
+
+Without `sessionId`, the widget is created but **will NOT appear in any chat**. It will only be accessible via the dashboard (if pinned) or direct URL.
 
 **Updating a widget (section-targeted):**
 ```json
