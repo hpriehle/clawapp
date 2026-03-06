@@ -6,10 +6,10 @@ WORKDIR /build
 COPY SharedModels/ SharedModels/
 
 # Copy server source
-COPY ClawAppServer/ ClawAppServer/
+COPY TalkClawServer/ TalkClawServer/
 
 # Build
-WORKDIR /build/ClawAppServer
+WORKDIR /build/TalkClawServer
 RUN swift build -c release --static-swift-stdlib
 
 # Runtime stage
@@ -20,10 +20,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY --from=builder /build/ClawAppServer/.build/release/App ./clawapp-server
+COPY --from=builder /build/TalkClawServer/.build/release/App ./talkclaw-server
+COPY TalkClawServer/Public/ ./Public/
 
 EXPOSE 8080
 ENV SWIFT_LOG_LEVEL=info
 
-ENTRYPOINT ["./clawapp-server"]
+ENTRYPOINT ["./talkclaw-server"]
 CMD ["serve", "--hostname", "0.0.0.0", "--port", "8080"]

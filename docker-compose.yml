@@ -1,16 +1,32 @@
 services:
-  clawapp:
+  talkclaw:
     build: .
     ports:
       - "8080:8080"
     environment:
-      - DATABASE_URL=postgres://clawapp:clawapp@db:5432/clawapp
+      - DATABASE_URL=postgres://talkclaw:talkclaw@db:5432/talkclaw
       - OPENCLAW_URL=${OPENCLAW_URL:-}
       - OPENCLAW_TOKEN=${OPENCLAW_TOKEN:-}
       - API_TOKEN=${API_TOKEN:-}
       - DATA_DIR=/data
+      - SANDBOX_SOCKET=/sandbox/talkclaw-sandbox.sock
     volumes:
       - app_data:/data
+      - sandbox_sock:/sandbox
+    depends_on:
+      db:
+        condition: service_healthy
+      sandbox:
+        condition: service_started
+    restart: unless-stopped
+
+  sandbox:
+    build: ./talkclaw-sandbox
+    environment:
+      - DATABASE_URL=postgres://talkclaw:talkclaw@db:5432/talkclaw
+      - SANDBOX_SOCKET=/sandbox/talkclaw-sandbox.sock
+    volumes:
+      - sandbox_sock:/sandbox
     depends_on:
       db:
         condition: service_healthy
@@ -19,13 +35,13 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      - POSTGRES_DB=clawapp
-      - POSTGRES_USER=clawapp
-      - POSTGRES_PASSWORD=clawapp
+      - POSTGRES_DB=talkclaw
+      - POSTGRES_USER=talkclaw
+      - POSTGRES_PASSWORD=talkclaw
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U clawapp"]
+      test: ["CMD-SHELL", "pg_isready -U talkclaw"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -33,3 +49,4 @@ services:
 volumes:
   pg_data:
   app_data:
+  sandbox_sock:

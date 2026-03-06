@@ -11,6 +11,13 @@ func routes(_ app: Application) throws {
     try protected.register(collection: SessionController())
     try protected.register(collection: MessageController())
     try protected.register(collection: FileController())
+    try protected.register(collection: WidgetController())
+    try protected.register(collection: RenderVarsController())
+    try protected.register(collection: DashboardController())
+    try protected.register(collection: WidgetSessionController())
+
+    // Widget serving (cookie auth via tc_widget_session)
+    try app.register(collection: WidgetServeController())
 
     // WebSocket (bearer token via query param)
     app.webSocket("api", "v1", "ws") { req, ws in

@@ -1,0 +1,223 @@
+/* TalkClaw Design System — CSS Tokens
+   Matches Theme.swift in the iOS app.
+   Used by AI-generated widgets for native look. */
+
+:root {
+    /* Background depth layers (darker = further back) */
+    --tc-bg: #0A0A0A;
+    --tc-surface-1: #0E0E0E;
+    --tc-surface-2: #161616;
+    --tc-surface-3: #1E1E1E;
+    --tc-surface-4: #282828;
+
+    /* Accent */
+    --tc-accent: #5B9EF5;
+    --tc-accent-light: #8BBDFF;
+    --tc-accent-dim: rgba(91, 158, 245, 0.12);
+    --tc-accent-glow: rgba(91, 158, 245, 0.30);
+
+    /* Text hierarchy */
+    --tc-text-primary: rgba(255, 255, 255, 0.9);
+    --tc-text-secondary: rgba(255, 255, 255, 0.5);
+    --tc-text-tertiary: rgba(255, 255, 255, 0.3);
+    --tc-text-disabled: rgba(255, 255, 255, 0.2);
+
+    /* Semantic */
+    --tc-success: #34D399;
+    --tc-error: #F97066;
+    --tc-warning: #F59E0B;
+    --tc-info: #818CF8;
+
+    /* Border */
+    --tc-border: rgba(255, 255, 255, 0.08);
+    --tc-border-active: rgba(255, 255, 255, 0.15);
+
+    /* Spacing */
+    --tc-space-xs: 4px;
+    --tc-space-sm: 8px;
+    --tc-space-md: 16px;
+    --tc-space-lg: 24px;
+    --tc-space-xl: 32px;
+
+    /* Radius */
+    --tc-radius-sm: 8px;
+    --tc-radius-md: 12px;
+    --tc-radius-lg: 16px;
+    --tc-radius-xl: 22px;
+
+    /* Typography */
+    --tc-font: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans-serif;
+    --tc-font-mono: 'SF Mono', ui-monospace, monospace;
+}
+
+/* Reset */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    font-family: var(--tc-font);
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--tc-text-primary);
+    background: var(--tc-bg);
+    -webkit-font-smoothing: antialiased;
+    -webkit-text-size-adjust: 100%;
+    overflow-x: hidden;
+}
+
+/* Glass card — matches iOS .glassCard() */
+.tc-glass {
+    background: rgba(22, 22, 22, 0.8);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--tc-border);
+    border-radius: var(--tc-radius-lg);
+    padding: var(--tc-space-md);
+}
+
+/* Error state — used by TalkClaw.handleError() */
+.tc-error-state {
+    background: rgba(249, 112, 102, 0.08);
+    border: 1px solid rgba(249, 112, 102, 0.2);
+    border-radius: var(--tc-radius-md);
+    padding: var(--tc-space-md);
+    color: var(--tc-error);
+    font-size: 13px;
+}
+
+.tc-error-state .tc-error-title {
+    font-weight: 600;
+    margin-bottom: var(--tc-space-xs);
+}
+
+.tc-error-state .tc-error-actions {
+    display: flex;
+    gap: var(--tc-space-sm);
+    margin-top: var(--tc-space-sm);
+}
+
+/* Buttons */
+.tc-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--tc-space-xs);
+    padding: var(--tc-space-sm) var(--tc-space-md);
+    border-radius: var(--tc-radius-sm);
+    border: none;
+    font-family: var(--tc-font);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+}
+
+.tc-btn:active {
+    opacity: 0.7;
+}
+
+.tc-btn-primary {
+    background: var(--tc-accent);
+    color: white;
+}
+
+.tc-btn-secondary {
+    background: var(--tc-surface-3);
+    color: var(--tc-text-primary);
+}
+
+.tc-btn-ghost {
+    background: transparent;
+    color: var(--tc-accent);
+}
+
+/* Text utilities */
+.tc-text-primary { color: var(--tc-text-primary); }
+.tc-text-secondary { color: var(--tc-text-secondary); }
+.tc-text-tertiary { color: var(--tc-text-tertiary); }
+.tc-text-accent { color: var(--tc-accent); }
+.tc-text-success { color: var(--tc-success); }
+.tc-text-error { color: var(--tc-error); }
+.tc-text-warning { color: var(--tc-warning); }
+
+/* Font sizes */
+.tc-text-xs { font-size: 11px; }
+.tc-text-sm { font-size: 13px; }
+.tc-text-base { font-size: 15px; }
+.tc-text-lg { font-size: 17px; }
+.tc-text-xl { font-size: 22px; }
+.tc-text-2xl { font-size: 28px; }
+.tc-text-mono { font-family: var(--tc-font-mono); }
+
+.tc-font-semibold { font-weight: 600; }
+.tc-font-bold { font-weight: 700; }
+
+/* Layout utilities */
+.tc-flex { display: flex; }
+.tc-flex-col { display: flex; flex-direction: column; }
+.tc-items-center { align-items: center; }
+.tc-justify-between { justify-content: space-between; }
+.tc-gap-xs { gap: var(--tc-space-xs); }
+.tc-gap-sm { gap: var(--tc-space-sm); }
+.tc-gap-md { gap: var(--tc-space-md); }
+.tc-gap-lg { gap: var(--tc-space-lg); }
+
+/* Padding */
+.tc-p-sm { padding: var(--tc-space-sm); }
+.tc-p-md { padding: var(--tc-space-md); }
+.tc-p-lg { padding: var(--tc-space-lg); }
+
+/* Card */
+.tc-card {
+    background: var(--tc-surface-2);
+    border: 1px solid var(--tc-border);
+    border-radius: var(--tc-radius-md);
+    padding: var(--tc-space-md);
+}
+
+/* Metric display */
+.tc-metric {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.tc-metric-label {
+    font-size: 13px;
+    color: var(--tc-text-secondary);
+    font-weight: 500;
+}
+
+/* Shimmer loading */
+@keyframes tc-shimmer {
+    0% { background-position: -200px 0; }
+    100% { background-position: calc(200px + 100%) 0; }
+}
+
+.tc-shimmer {
+    background: linear-gradient(
+        90deg,
+        var(--tc-surface-2) 0%,
+        var(--tc-surface-3) 50%,
+        var(--tc-surface-2) 100%
+    );
+    background-size: 200px 100%;
+    animation: tc-shimmer 1.5s infinite;
+    border-radius: var(--tc-radius-sm);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 4px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--tc-surface-4);
+    border-radius: 2px;
+}

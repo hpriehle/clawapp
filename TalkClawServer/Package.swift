@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "ClawAppServer",
+    name: "TalkClawServer",
     platforms: [.macOS(.v14)],
     dependencies: [
         .package(url: "https://github.com/vapor/vapor.git", from: "4.99.0"),

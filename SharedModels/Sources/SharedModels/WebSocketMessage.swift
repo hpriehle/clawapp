@@ -14,6 +14,8 @@ public enum WSMessage: Codable, Sendable {
     case sessionUpdated(SessionDTO)
     case error(WSError)
     case pong
+    case widgetInjected(WidgetPayload)
+    case widgetUpdated(WidgetPayload)
 
     // MARK: - Payloads
 
@@ -81,6 +83,10 @@ public enum WSMessage: Codable, Sendable {
             self = .error(try container.decode(WSError.self, forKey: .payload))
         case "pong":
             self = .pong
+        case "widget_injected":
+            self = .widgetInjected(try container.decode(WidgetPayload.self, forKey: .payload))
+        case "widget_updated":
+            self = .widgetUpdated(try container.decode(WidgetPayload.self, forKey: .payload))
         default:
             throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "Unknown WS message type: \(type)")
         }
@@ -114,6 +120,12 @@ public enum WSMessage: Codable, Sendable {
             try container.encode(error, forKey: .payload)
         case .pong:
             try container.encode("pong", forKey: .type)
+        case .widgetInjected(let payload):
+            try container.encode("widget_injected", forKey: .type)
+            try container.encode(payload, forKey: .payload)
+        case .widgetUpdated(let payload):
+            try container.encode("widget_updated", forKey: .type)
+            try container.encode(payload, forKey: .payload)
         }
     }
 }

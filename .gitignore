@@ -24,7 +24,7 @@ xcuserdata/
 *.hmap
 
 # iOS app (closed source)
-ClawApp/
+TalkClaw/
 
 # Editor backups
 *.bak

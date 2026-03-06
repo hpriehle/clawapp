@@ -10,7 +10,7 @@ func configure(_ app: Application) throws {
     if let dbURL = Environment.get("DATABASE_URL") {
         try app.databases.use(DatabaseConfigurationFactory.postgres(url: dbURL), as: .psql)
     } else {
-        app.databases.use(.sqlite(.file("clawapp.sqlite")), as: .sqlite)
+        app.databases.use(.sqlite(.file("talkclaw.sqlite")), as: .sqlite)
     }
 
     // MARK: - Migrations
@@ -19,6 +19,7 @@ func configure(_ app: Application) throws {
     app.migrations.add(CreateSession())
     app.migrations.add(CreateMessage())
     app.migrations.add(SimplifyAuth())
+    app.migrations.add(CreateWidgetTables())
     try app.autoMigrate().wait()
 
     // MARK: - API Token
@@ -28,7 +29,7 @@ func configure(_ app: Application) throws {
         apiToken = envToken
     } else {
         let dataDir = Environment.get("DATA_DIR") ?? "."
-        let tokenPath = dataDir + "/.clawapp-token"
+        let tokenPath = dataDir + "/.talkclaw-token"
         if let saved = try? String(contentsOfFile: tokenPath, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines), !saved.isEmpty {
             apiToken = saved
@@ -38,12 +39,15 @@ func configure(_ app: Application) throws {
             try? FileManager.default.createDirectory(atPath: dataDir, withIntermediateDirectories: true)
             try? apiToken.write(toFile: tokenPath, atomically: true, encoding: .utf8)
             app.logger.notice("=== Generated API token: \(apiToken) ===")
-            app.logger.notice("Save this token — enter it in the ClawApp iOS app to connect.")
+            app.logger.notice("Save this token — enter it in the TalkClaw iOS app to connect.")
         }
     }
     app.storage[APITokenKey.self] = apiToken
 
     // MARK: - Middleware
+
+    // Static file serving (/static/talkclaw.css, /static/talkclaw-bridge.js)
+    app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
 
     app.middleware.use(CORSMiddleware(configuration: .init(
         allowedOrigin: .all,
@@ -63,6 +67,10 @@ func configure(_ app: Application) throws {
 
     let clientManager = ClientWSManager()
     app.storage[ClientWSManagerKey.self] = clientManager
+
+    // Sandbox client (Unix socket to isolated-vm sidecar)
+    let sandboxSocket = Environment.get("SANDBOX_SOCKET") ?? "/sandbox/talkclaw-sandbox.sock"
+    app.sandboxClient = SandboxClient(socketPath: sandboxSocket)
 
     // MARK: - Config
 

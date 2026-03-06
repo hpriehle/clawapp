@@ -19,7 +19,17 @@ struct SessionController: RouteCollection {
         let sessions = try await Session.query(on: req.db)
             .sort(\.$lastMessageAt, .descending)
             .all()
-        return sessions.map { $0.toDTO() }
+
+        var dtos: [SessionDTO] = []
+        for session in sessions {
+            let lastMessage = try await Message.query(on: req.db)
+                .filter(\.$session.$id == session.id!)
+                .sort(\.$createdAt, .descending)
+                .first()
+            let preview = lastMessage?.textContent.map { String($0.prefix(100)) }
+            dtos.append(session.toDTO(lastMessagePreview: preview))
+        }
+        return dtos
     }
 
     @Sendable

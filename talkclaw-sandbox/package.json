@@ -1,0 +1,13 @@
+{
+  "name": "talkclaw-sandbox",
+  "version": "1.0.0",
+  "description": "Isolated V8 sandbox for TalkClaw widget route handlers",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "isolated-vm": "^5.0.1",
+    "pg": "^8.13.0"
+  }
+}

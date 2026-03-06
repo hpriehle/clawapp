@@ -64,7 +64,7 @@ actor OpenClawHTTPClient {
             }
         }
 
-        let sessionKey = "clawapp-\(sessionId.uuidString)"
+        let sessionKey = "talkclaw-\(sessionId.uuidString)"
         let messageId = UUID()
 
         logger.info("Sending chat: sessionId=\(sessionId), sessionKey=\(sessionKey)")
@@ -113,6 +113,21 @@ actor OpenClawHTTPClient {
 
             let dto = try message.toDTO()
             await clientManager.broadcast(.chatComplete(dto))
+
+            // Auto-title: if the session has no title yet, generate one from the user's message
+            if let session = try? await Session.find(sessionId, on: db),
+               session.title == nil || session.title?.isEmpty == true {
+                let firstUserMsg = try? await Message.query(on: db)
+                    .filter(\.$session.$id == sessionId)
+                    .filter(\.$role == "user")
+                    .sort(\.$createdAt, .ascending)
+                    .first()
+                if let firstMsg = firstUserMsg, let text = firstMsg.textContent {
+                    session.title = String(text.prefix(50))
+                    try? await session.save(on: db)
+                    await clientManager.broadcast(.sessionUpdated(session.toDTO()))
+                }
+            }
 
             logger.info("AI response complete (\(fullResponse.count) chars)")
 

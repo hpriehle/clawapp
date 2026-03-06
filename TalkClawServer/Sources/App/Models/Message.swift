@@ -21,6 +21,13 @@ final class Message: Model, Content, @unchecked Sendable {
         self.contentJSON = try JSONEncoder().encode(content)
     }
 
+    /// Extract the plain text from this message's content, if it's a `.text` variant.
+    var textContent: String? {
+        guard let content = try? JSONDecoder().decode(MessageContent.self, from: contentJSON),
+              case .text(let text) = content else { return nil }
+        return text
+    }
+
     func toDTO() throws -> MessageDTO {
         let content = try JSONDecoder().decode(MessageContent.self, from: contentJSON)
         return MessageDTO(

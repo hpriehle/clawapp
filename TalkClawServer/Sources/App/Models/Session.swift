@@ -26,10 +26,11 @@ final class Session: Model, Content, @unchecked Sendable {
         self.isArchived = false
     }
 
-    func toDTO(unreadCount: Int = 0) -> SessionDTO {
+    func toDTO(unreadCount: Int = 0, lastMessagePreview: String? = nil) -> SessionDTO {
         SessionDTO(
             id: id!,
             title: title,
+            lastMessagePreview: lastMessagePreview,
             lastMessageAt: lastMessageAt,
             unreadCount: unreadCount,
             isPinned: isPinned,

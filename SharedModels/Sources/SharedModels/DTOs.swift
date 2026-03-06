@@ -5,6 +5,7 @@ import Foundation
 public struct SessionDTO: Codable, Sendable, Identifiable, Hashable {
     public let id: UUID
     public var title: String?
+    public var lastMessagePreview: String?
     public var lastMessageAt: Date?
     public var unreadCount: Int
     public var isPinned: Bool
@@ -14,6 +15,7 @@ public struct SessionDTO: Codable, Sendable, Identifiable, Hashable {
     public init(
         id: UUID,
         title: String? = nil,
+        lastMessagePreview: String? = nil,
         lastMessageAt: Date? = nil,
         unreadCount: Int = 0,
         isPinned: Bool = false,
@@ -22,6 +24,7 @@ public struct SessionDTO: Codable, Sendable, Identifiable, Hashable {
     ) {
         self.id = id
         self.title = title
+        self.lastMessagePreview = lastMessagePreview
         self.lastMessageAt = lastMessageAt
         self.unreadCount = unreadCount
         self.isPinned = isPinned
@@ -169,5 +172,188 @@ public struct HealthResponse: Codable, Sendable {
         self.status = status
         self.version = version
         self.openclawConnected = openclawConnected
+    }
+}
+
+// MARK: - Widget
+
+public enum WidgetSurface: String, Codable, Sendable, Hashable {
+    case inline
+    case dashboard
+}
+
+public struct WidgetPayload: Codable, Sendable, Hashable {
+    public let slug: String
+    public let title: String
+    public let description: String
+    public let surface: WidgetSurface
+    public let version: Int
+
+    public init(slug: String, title: String, description: String, surface: WidgetSurface, version: Int) {
+        self.slug = slug
+        self.title = title
+        self.description = description
+        self.surface = surface
+        self.version = version
+    }
+}
+
+public struct WidgetDTO: Codable, Sendable, Identifiable, Hashable {
+    public let id: UUID
+    public let slug: String
+    public let title: String
+    public let description: String
+    public let surface: WidgetSurface
+    public let html: String
+    public let renderVars: [String: String]
+    public let version: Int
+    public let createdBySession: UUID?
+    public let createdAt: Date
+    public let updatedAt: Date
+
+    public init(
+        id: UUID,
+        slug: String,
+        title: String,
+        description: String,
+        surface: WidgetSurface,
+        html: String,
+        renderVars: [String: String] = [:],
+        version: Int = 1,
+        createdBySession: UUID? = nil,
+        createdAt: Date = .now,
+        updatedAt: Date = .now
+    ) {
+        self.id = id
+        self.slug = slug
+        self.title = title
+        self.description = description
+        self.surface = surface
+        self.html = html
+        self.renderVars = renderVars
+        self.version = version
+        self.createdBySession = createdBySession
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+public struct WidgetListItemDTO: Codable, Sendable, Identifiable, Hashable {
+    public let id: UUID
+    public let slug: String
+    public let title: String
+    public let description: String
+    public let surface: WidgetSurface
+    public let version: Int
+    public let createdAt: Date
+
+    public init(id: UUID, slug: String, title: String, description: String, surface: WidgetSurface, version: Int, createdAt: Date) {
+        self.id = id
+        self.slug = slug
+        self.title = title
+        self.description = description
+        self.surface = surface
+        self.version = version
+        self.createdAt = createdAt
+    }
+}
+
+public struct DashboardItemDTO: Codable, Sendable, Identifiable, Hashable {
+    public let id: UUID
+    public let widgetId: UUID
+    public let slug: String
+    public let title: String
+    public let colSpan: Int
+    public let position: Int
+
+    public init(id: UUID, widgetId: UUID, slug: String, title: String, colSpan: Int, position: Int) {
+        self.id = id
+        self.widgetId = widgetId
+        self.slug = slug
+        self.title = title
+        self.colSpan = colSpan
+        self.position = position
+    }
+}
+
+public struct WidgetVersionDTO: Codable, Sendable, Identifiable, Hashable {
+    public let id: UUID
+    public let version: Int
+    public let snapshotAt: Date
+
+    public init(id: UUID, version: Int, snapshotAt: Date) {
+        self.id = id
+        self.version = version
+        self.snapshotAt = snapshotAt
+    }
+}
+
+// MARK: - Widget Requests
+
+public struct CreateWidgetRequest: Codable, Sendable {
+    public let slug: String
+    public let title: String
+    public let description: String
+    public let surface: WidgetSurface
+    public let html: String
+    public let sessionId: UUID?
+
+    public init(slug: String, title: String, description: String, surface: WidgetSurface, html: String, sessionId: UUID? = nil) {
+        self.slug = slug
+        self.title = title
+        self.description = description
+        self.surface = surface
+        self.html = html
+        self.sessionId = sessionId
+    }
+}
+
+public struct UpdateWidgetSectionsRequest: Codable, Sendable {
+    public let sections: [String: String]
+
+    public init(sections: [String: String]) {
+        self.sections = sections
+    }
+}
+
+public struct UpdateRenderVarsRequest: Codable, Sendable {
+    public let vars: [String: String]
+
+    public init(vars: [String: String]) {
+        self.vars = vars
+    }
+}
+
+public struct PinWidgetRequest: Codable, Sendable {
+    public let colSpan: Int
+
+    public init(colSpan: Int = 1) {
+        self.colSpan = colSpan
+    }
+}
+
+public struct ReorderDashboardRequest: Codable, Sendable {
+    public let items: [ReorderItem]
+
+    public struct ReorderItem: Codable, Sendable {
+        public let widgetId: UUID
+        public let colSpan: Int
+
+        public init(widgetId: UUID, colSpan: Int) {
+            self.widgetId = widgetId
+            self.colSpan = colSpan
+        }
+    }
+
+    public init(items: [ReorderItem]) {
+        self.items = items
+    }
+}
+
+public struct UpdateDashboardItemRequest: Codable, Sendable {
+    public let colSpan: Int
+
+    public init(colSpan: Int) {
+        self.colSpan = colSpan
     }
 }
