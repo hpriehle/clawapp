@@ -43,6 +43,7 @@ final class ClientWSHandler {
     }
 
     private func handleMessage(_ text: String) async {
+        logger.info("WS received from \(connectionId): \(text.prefix(200))")
         guard let data = text.data(using: .utf8),
               let message = try? decoder.decode(WSMessage.self, from: data) else {
             logger.warning("Failed to decode WS message: \(text.prefix(100))")
