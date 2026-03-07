@@ -103,6 +103,16 @@ actor OpenClawHTTPClient {
                         continuation.resume(returning: "")
                     }
                 )
+
+                // Timeout: if no response in 10 minutes, clean up the handler
+                Task {
+                    try? await Task.sleep(for: .seconds(600))
+                    if self.chatHandlers.removeValue(forKey: runId) != nil {
+                        self.logger.warning("Chat handler timed out: runId=\(runId)")
+                        Task { await self.broadcastError(clientManager: clientManager, message: "Chat timed out") }
+                        continuation.resume(returning: "")
+                    }
+                }
             }
 
             guard !fullResponse.isEmpty else { return }

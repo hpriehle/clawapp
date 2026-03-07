@@ -116,11 +116,24 @@ enum WidgetTokenSigner {
 
 struct WidgetTokenMiddleware: AsyncMiddleware {
     func respond(to request: Request, chainingTo next: AsyncResponder) async throws -> Response {
-        guard let token = try? request.query.get(String.self, at: "token"),
-              token == request.application.apiToken else {
+        let tokenFromQuery = try? request.query.get(String.self, at: "token")
+        let tokenFromCookie = request.cookies["tc_wt"]?.string
+
+        guard (tokenFromQuery == request.application.apiToken) ||
+              (tokenFromCookie == request.application.apiToken) else {
             throw Abort(.unauthorized, reason: "Missing or invalid token")
         }
-        return try await next.respond(to: request)
+
+        let response = try await next.respond(to: request)
+
+        // On first auth via query param, set cookie for sub-requests (fetch/XHR from widget JS)
+        if tokenFromQuery != nil {
+            response.headers.replaceOrAdd(name: .setCookie, value:
+                "tc_wt=\(request.application.apiToken); Path=/w/; HttpOnly; SameSite=Strict; Secure; Max-Age=86400"
+            )
+        }
+
+        return response
     }
 }
 
