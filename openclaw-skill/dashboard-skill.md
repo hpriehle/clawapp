@@ -7,16 +7,17 @@
 | | Inline (chat) | Dashboard |
 |---|---|---|
 | **Scrolling** | Disabled — content auto-sizes | Enabled — tall content scrolls |
-| **Max height** | 500pt | 400pt (half) / 600pt (full width) |
+| **Sizes** | Auto-height | Small (1×1 ~172pt²), Medium (2×1 ~360×172pt), Large (2×2 ~360×360pt) |
 | **Lifecycle** | Tied to chat message | Persistent — always visible |
 | **Auto-refresh** | Optional | Expected for live data |
-| **col_span** | N/A | 1 = half width, 2 = full width |
 
 **Pinning to dashboard:** After creating a widget with `surface: "inline"`, pin it via:
 ```
-POST /api/v1/dashboard/:slug  { "col_span": 1 }
+POST /api/v1/dashboard/:slug  { "size": "small" }
 ```
 Or create with `surface: "dashboard"` to skip inline delivery.
+
+**Sizes:** `"small"` = 1×1 grid cell, `"medium"` = full width single row, `"large"` = full width double height.
 
 ## Core Patterns
 
@@ -495,5 +496,5 @@ TalkClaw.startAutoRefresh(parseInt(vars.refresh_interval_ms) || 30000, async fun
 - **Prefer CSS utilities** over custom styles — `tc-flex`, `tc-grid-2`, `tc-kv`, `tc-metric`
 - **Use CSS custom properties** (`var(--tc-*)`) for all colors, spacing, radii
 - **Keep fonts system** — `-apple-system` matches native iOS text
-- **Full-width widgets** (`col_span: 2`) are ideal for tables, charts, and multi-section layouts
-- **Test on iPhone width** — dashboard cards are ~170px (half) or ~360px (full) wide
+- **Medium/Large widgets** are ideal for tables, charts, and multi-section layouts
+- **Test on iPhone width** — small cards are ~172px square, medium/large are ~360px wide

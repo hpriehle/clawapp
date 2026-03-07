@@ -15,3 +15,5 @@ extension UpdateRenderVarsRequest: @retroactive Content {}
 extension PinWidgetRequest: @retroactive Content {}
 extension ReorderDashboardRequest: @retroactive Content {}
 extension UpdateDashboardItemRequest: @retroactive Content {}
+extension WidgetTemplateDTO: @retroactive Content {}
+extension InstantiateTemplateRequest: @retroactive Content {}

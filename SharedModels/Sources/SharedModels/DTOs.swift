@@ -220,6 +220,35 @@ public struct HealthResponse: Codable, Sendable {
 
 // MARK: - Widget
 
+public enum WidgetSize: String, Codable, Sendable, Hashable, CaseIterable {
+    case small   // 1×1 — one grid slot
+    case medium  // 2×1 — full width, single row
+    case large   // 2×2 — full width, double row
+
+    public var colSpan: Int {
+        switch self {
+        case .small: return 1
+        case .medium, .large: return 2
+        }
+    }
+
+    public var rowSpan: Int {
+        switch self {
+        case .small, .medium: return 1
+        case .large: return 2
+        }
+    }
+
+    /// Next size in the cycle: small → medium → large → small
+    public var next: WidgetSize {
+        switch self {
+        case .small: return .medium
+        case .medium: return .large
+        case .large: return .small
+        }
+    }
+}
+
 public enum WidgetSurface: String, Codable, Sendable, Hashable {
     case inline
     case dashboard
@@ -306,15 +335,15 @@ public struct DashboardItemDTO: Codable, Sendable, Identifiable, Hashable {
     public let widgetId: UUID
     public let slug: String
     public let title: String
-    public let colSpan: Int
+    public let size: WidgetSize
     public let position: Int
 
-    public init(id: UUID, widgetId: UUID, slug: String, title: String, colSpan: Int, position: Int) {
+    public init(id: UUID, widgetId: UUID, slug: String, title: String, size: WidgetSize, position: Int) {
         self.id = id
         self.widgetId = widgetId
         self.slug = slug
         self.title = title
-        self.colSpan = colSpan
+        self.size = size
         self.position = position
     }
 }
@@ -368,10 +397,10 @@ public struct UpdateRenderVarsRequest: Codable, Sendable {
 }
 
 public struct PinWidgetRequest: Codable, Sendable {
-    public let colSpan: Int
+    public let size: WidgetSize
 
-    public init(colSpan: Int = 1) {
-        self.colSpan = colSpan
+    public init(size: WidgetSize = .small) {
+        self.size = size
     }
 }
 
@@ -380,11 +409,11 @@ public struct ReorderDashboardRequest: Codable, Sendable {
 
     public struct ReorderItem: Codable, Sendable {
         public let widgetId: UUID
-        public let colSpan: Int
+        public let size: WidgetSize
 
-        public init(widgetId: UUID, colSpan: Int) {
+        public init(widgetId: UUID, size: WidgetSize) {
             self.widgetId = widgetId
-            self.colSpan = colSpan
+            self.size = size
         }
     }
 
@@ -394,9 +423,48 @@ public struct ReorderDashboardRequest: Codable, Sendable {
 }
 
 public struct UpdateDashboardItemRequest: Codable, Sendable {
-    public let colSpan: Int
+    public let size: WidgetSize
 
-    public init(colSpan: Int) {
-        self.colSpan = colSpan
+    public init(size: WidgetSize) {
+        self.size = size
+    }
+}
+
+// MARK: - Widget Library
+
+public enum WidgetCategory: String, Codable, Sendable, Hashable, CaseIterable {
+    case productivity
+    case monitoring
+    case lifestyle
+    case utility
+}
+
+public struct WidgetTemplateDTO: Codable, Sendable, Identifiable, Hashable {
+    public let id: String
+    public let slug: String
+    public let title: String
+    public let description: String
+    public let category: WidgetCategory
+    public let icon: String
+    public let supportedSizes: [WidgetSize]
+    public let defaultSize: WidgetSize
+
+    public init(id: String, slug: String, title: String, description: String, category: WidgetCategory, icon: String, supportedSizes: [WidgetSize], defaultSize: WidgetSize) {
+        self.id = id
+        self.slug = slug
+        self.title = title
+        self.description = description
+        self.category = category
+        self.icon = icon
+        self.supportedSizes = supportedSizes
+        self.defaultSize = defaultSize
+    }
+}
+
+public struct InstantiateTemplateRequest: Codable, Sendable {
+    public let size: WidgetSize
+
+    public init(size: WidgetSize = .small) {
+        self.size = size
     }
 }

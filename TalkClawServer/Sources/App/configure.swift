@@ -20,6 +20,7 @@ func configure(_ app: Application) throws {
     app.migrations.add(CreateMessage())
     app.migrations.add(SimplifyAuth())
     app.migrations.add(CreateWidgetTables())
+    app.migrations.add(AddWidgetSize())
     try app.autoMigrate().wait()
 
     // MARK: - API Token

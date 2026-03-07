@@ -22,12 +22,13 @@ struct DashboardController: RouteCollection {
             .all()
 
         return items.map { item in
-            DashboardItemDTO(
+            let size = WidgetSize(rawValue: item.size) ?? .small
+            return DashboardItemDTO(
                 id: item.id!,
                 widgetId: item.widget.id!,
                 slug: item.widget.slug,
                 title: item.widget.title,
-                colSpan: item.colSpan,
+                size: size,
                 position: item.position
             )
         }
@@ -45,7 +46,7 @@ struct DashboardController: RouteCollection {
             let layout = DashboardLayout(
                 widgetId: item.widgetId,
                 position: index,
-                colSpan: item.colSpan
+                size: item.size.rawValue
             )
             try await layout.save(on: req.db)
         }
@@ -79,7 +80,7 @@ struct DashboardController: RouteCollection {
         let layout = DashboardLayout(
             widgetId: widget.id!,
             position: maxPosition + 1,
-            colSpan: pinReq.colSpan
+            size: pinReq.size.rawValue
         )
         try await layout.save(on: req.db)
 
@@ -88,7 +89,7 @@ struct DashboardController: RouteCollection {
             widgetId: widget.id!,
             slug: widget.slug,
             title: widget.title,
-            colSpan: layout.colSpan,
+            size: pinReq.size,
             position: layout.position
         )
     }
@@ -125,7 +126,8 @@ struct DashboardController: RouteCollection {
         }
 
         let updateReq = try req.content.decode(UpdateDashboardItemRequest.self)
-        layout.colSpan = updateReq.colSpan
+        layout.size = updateReq.size.rawValue
+        layout.colSpan = updateReq.size.colSpan
         try await layout.save(on: req.db)
 
         return DashboardItemDTO(
@@ -133,7 +135,7 @@ struct DashboardController: RouteCollection {
             widgetId: widget.id!,
             slug: widget.slug,
             title: widget.title,
-            colSpan: layout.colSpan,
+            size: updateReq.size,
             position: layout.position
         )
     }

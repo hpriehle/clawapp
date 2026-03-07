@@ -68,17 +68,23 @@ The user runs a self-hosted Vapor server that acts as middleware between the iOS
 - Sessions are sorted: pinned first, then by most recent message
 
 ### Dashboard
-- 2-column grid of pinned widgets
-- col_span 1 = half width, col_span 2 = full width
+- 2-column grid of pinned widgets with 3 standard sizes (iPhone-style):
+  - **Small** (1×1) — single grid cell (~172×172pt)
+  - **Medium** (2×1) — full width, single row (~360×172pt)
+  - **Large** (2×2) — full width, double height (~360×360pt)
 - Pull-to-refresh reloads all widgets
-- Long-press for Edit Mode (reorder, remove)
+- Edit mode: reorder, cycle size (S→M→L→S), remove
+
+### Widget Library
+- "+" button on dashboard opens the widget library
+- Browse pre-built template widgets by category (productivity, monitoring, lifestyle, utility)
+- Add templates instantly — creates a new widget + pins to dashboard
+- Also shows existing custom widgets that can be pinned
 
 ### Dashboard Widgets
-- 2-column grid of pinned widgets with scrolling enabled and larger height budget (up to 600pt for full-width)
 - Widgets auto-refresh with `TalkClaw.startAutoRefresh(intervalMs, fetchFn)` — handles visibility pausing
 - See **`dashboard-skill.md`** for complete patterns guide and example widgets (metric cards, data tables, multi-section layouts)
 - Users can build **anything** — the examples are starting points, not constraints
-- Edit mode supports reorder, resize (toggle col_span 1↔2), and remove
 
 ## Message Types
 
@@ -297,10 +303,17 @@ Only send sections you're changing. Vapor merges them into the stored HTML, incr
 | Method | Path | Body | Description |
 |--------|------|------|-------------|
 | GET | /api/v1/dashboard | — | Fetch ordered layout |
-| PUT | /api/v1/dashboard | `[{ slug, position, col_span }]` | Replace full layout |
-| POST | /api/v1/dashboard/:slug | `{ col_span: 1 }` | Pin widget (1=half, 2=full) |
+| PUT | /api/v1/dashboard | `[{ widgetId, position, size }]` | Replace full layout |
+| POST | /api/v1/dashboard/:slug | `{ size: "small" }` | Pin widget (small/medium/large) |
 | DELETE | /api/v1/dashboard/:slug | — | Unpin |
-| PATCH | /api/v1/dashboard/:slug | `{ col_span: 2 }` | Update col_span |
+| PATCH | /api/v1/dashboard/:slug | `{ size: "medium" }` | Update size |
+
+### Widget Library
+
+| Method | Path | Body | Description |
+|--------|------|------|-------------|
+| GET | /api/v1/widget-library | — | List all template widgets (metadata) |
+| POST | /api/v1/widget-library/:slug | `{ size: "small" }` | Instantiate template → creates widget + pins to dashboard |
 
 ### Sessions
 
@@ -426,7 +439,7 @@ Available as `TalkClaw.*` in widget scripts:
 | `TalkClaw.sendMessage(text)` | Send a text message to the chat session |
 | `TalkClaw.sendStructured(type, data)` | Send structured event (e.g. `widget_error`, `widget_action`) |
 | `TalkClaw.setVars(newVars)` | Update render variables (merges with existing) |
-| `TalkClaw.pinToDashboard(colSpan)` | Pin widget to dashboard (1=half, 2=full) |
+| `TalkClaw.pinToDashboard(size)` | Pin widget to dashboard (size: "small", "medium", "large") |
 | `TalkClaw.dismiss()` | Collapse widget in chat view |
 | `TalkClaw.reportHeight()` | Report content height for auto-sizing (called automatically) |
 | `TalkClaw.handleError(error, context)` | Show error card with Retry + Report buttons |
