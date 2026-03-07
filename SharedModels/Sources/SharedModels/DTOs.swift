@@ -147,10 +147,12 @@ public struct UpdateSessionRequest: Codable, Sendable {
 public struct SendMessageRequest: Codable, Sendable {
     public let content: String
     public let attachments: [AttachmentInfo]?
+    public let role: String?
 
-    public init(content: String, attachments: [AttachmentInfo]? = nil) {
+    public init(content: String, attachments: [AttachmentInfo]? = nil, role: String? = nil) {
         self.content = content
         self.attachments = attachments
+        self.role = role
     }
 }
 

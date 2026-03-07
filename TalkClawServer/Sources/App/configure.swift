@@ -57,13 +57,16 @@ func configure(_ app: Application) throws {
 
     // MARK: - Services
 
-    let aiClient = OpenClawHTTPClient(
-        baseURL: Environment.get("OPENCLAW_URL") ?? "http://localhost:18789",
-        token: Environment.get("OPENCLAW_TOKEN") ?? "",
+    let webhookSecret = Environment.get("OPENCLAW_WEBHOOK_SECRET") ?? ""
+    app.storage[WebhookSecretKey.self] = webhookSecret
+
+    let channelClient = OpenClawChannelClient(
+        channelURL: Environment.get("OPENCLAW_CHANNEL_URL") ?? "",
+        webhookSecret: webhookSecret,
         logger: app.logger,
-        app: app
+        client: app.client
     )
-    app.storage[AIClientKey.self] = aiClient
+    app.storage[AIClientKey.self] = channelClient
 
     let clientManager = ClientWSManager()
     app.storage[ClientWSManagerKey.self] = clientManager
@@ -85,7 +88,11 @@ func configure(_ app: Application) throws {
 // MARK: - Storage Keys
 
 struct AIClientKey: StorageKey {
-    typealias Value = OpenClawHTTPClient
+    typealias Value = OpenClawChannelClient
+}
+
+struct WebhookSecretKey: StorageKey {
+    typealias Value = String
 }
 
 struct ClientWSManagerKey: StorageKey {
@@ -101,8 +108,12 @@ struct APITokenKey: StorageKey {
 }
 
 extension Application {
-    var aiClient: OpenClawHTTPClient {
+    var channelClient: OpenClawChannelClient {
         storage[AIClientKey.self]!
+    }
+
+    var webhookSecret: String {
+        storage[WebhookSecretKey.self]!
     }
 
     var clientWSManager: ClientWSManager {

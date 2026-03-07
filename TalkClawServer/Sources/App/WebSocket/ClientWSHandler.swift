@@ -7,7 +7,7 @@ import Foundation
 final class ClientWSHandler {
     private let ws: WebSocket
     private let manager: ClientWSManager
-    private let aiClient: OpenClawHTTPClient
+    private let channelClient: OpenClawChannelClient
     private let db: Database
     private let logger: Logger
     let connectionId = UUID()
@@ -18,10 +18,10 @@ final class ClientWSHandler {
         return d
     }()
 
-    init(ws: WebSocket, manager: ClientWSManager, aiClient: OpenClawHTTPClient, db: Database, logger: Logger) {
+    init(ws: WebSocket, manager: ClientWSManager, channelClient: OpenClawChannelClient, db: Database, logger: Logger) {
         self.ws = ws
         self.manager = manager
-        self.aiClient = aiClient
+        self.channelClient = channelClient
         self.db = db
         self.logger = logger
     }
@@ -52,8 +52,9 @@ final class ClientWSHandler {
 
         switch message {
         case .sendChat(let payload):
-            // Auto-subscribe this connection to the session
+            // Auto-subscribe this connection and all others to the session
             manager.subscribe(connectionId: connectionId, sessionId: payload.sessionId)
+            manager.subscribeAll(to: payload.sessionId)
 
             // Save user message
             do {
@@ -70,12 +71,10 @@ final class ClientWSHandler {
                     try await session.save(on: db)
                 }
 
-                // Forward to AI backend
-                await aiClient.sendChat(
+                // Forward to AI backend via channel
+                try await channelClient.sendToChannel(
                     sessionId: payload.sessionId,
-                    content: payload.content,
-                    db: db,
-                    clientManager: manager
+                    content: payload.content
                 )
             } catch {
                 logger.error("Error handling sendChat: \(error)")

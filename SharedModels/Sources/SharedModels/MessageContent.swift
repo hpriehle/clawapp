@@ -110,7 +110,7 @@ public enum MessageContent: Codable, Sendable, Hashable {
 
 extension String {
     /// Strips common markdown formatting for plain-text preview display.
-    var strippingMarkdown: String {
+    public var strippingMarkdown: String {
         var s = self
         s = s.replacingOccurrences(of: "(?m)^#{1,6}\\s+", with: "", options: .regularExpression)
         s = s.replacingOccurrences(of: "\\*{1,3}(.+?)\\*{1,3}", with: "$1", options: .regularExpression)

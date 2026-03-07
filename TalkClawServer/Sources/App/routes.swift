@@ -6,6 +6,9 @@ func routes(_ app: Application) throws {
     // Health (public)
     try api.register(collection: HealthController())
 
+    // OpenClaw webhook (authenticated by webhook secret, not API token)
+    try api.register(collection: OpenClawWebhookController())
+
     // Protected routes (bearer token)
     let protected = api.grouped(BearerTokenMiddleware())
     try protected.register(collection: SessionController())
@@ -31,7 +34,7 @@ func routes(_ app: Application) throws {
         let handler = ClientWSHandler(
             ws: ws,
             manager: manager,
-            aiClient: req.application.aiClient,
+            channelClient: req.application.channelClient,
             db: req.db,
             logger: req.logger
         )

@@ -85,37 +85,39 @@ struct MessageController: RouteCollection {
         }
 
         let sendReq = try req.content.decode(SendMessageRequest.self)
+        let messageRole: MessageRole = (sendReq.role == "assistant") ? .assistant : .user
 
-        // Save attachment messages (before text so they appear in order)
-        let baseURL = req.application.http.server.configuration.hostname == "0.0.0.0"
-            ? "http://localhost:\(req.application.http.server.configuration.port)"
-            : "http://\(req.application.http.server.configuration.hostname):\(req.application.http.server.configuration.port)"
+        // Save attachment messages (user messages only)
+        if messageRole == .user {
+            let baseURL = req.application.http.server.configuration.hostname == "0.0.0.0"
+                ? "http://localhost:\(req.application.http.server.configuration.port)"
+                : "http://\(req.application.http.server.configuration.hostname):\(req.application.http.server.configuration.port)"
 
-        if let attachments = sendReq.attachments {
-            for att in attachments {
-                let fileURL = URL(string: "\(baseURL)/api/v1/files/\(att.serverPath)")!
-                if att.mimeType.hasPrefix("image/") {
-                    let imgMsg = try Message(
-                        sessionId: sessionId,
-                        role: .user,
-                        content: .image(url: fileURL, caption: nil)
-                    )
-                    try await imgMsg.save(on: req.db)
-                } else {
-                    let fileMsg = try Message(
-                        sessionId: sessionId,
-                        role: .user,
-                        content: .file(name: att.filename, url: fileURL, size: att.size)
-                    )
-                    try await fileMsg.save(on: req.db)
+            if let attachments = sendReq.attachments {
+                for att in attachments {
+                    let fileURL = URL(string: "\(baseURL)/api/v1/files/\(att.serverPath)")!
+                    if att.mimeType.hasPrefix("image/") {
+                        let imgMsg = try Message(
+                            sessionId: sessionId,
+                            role: .user,
+                            content: .image(url: fileURL, caption: nil)
+                        )
+                        try await imgMsg.save(on: req.db)
+                    } else {
+                        let fileMsg = try Message(
+                            sessionId: sessionId,
+                            role: .user,
+                            content: .file(name: att.filename, url: fileURL, size: att.size)
+                        )
+                        try await fileMsg.save(on: req.db)
+                    }
                 }
             }
         }
 
-        // Save the user text message
         let message = try Message(
             sessionId: sessionId,
-            role: .user,
+            role: messageRole,
             content: .text(sendReq.content)
         )
         try await message.save(on: req.db)
@@ -126,17 +128,32 @@ struct MessageController: RouteCollection {
             try await session.save(on: req.db)
         }
 
-        // Forward to AI backend (non-blocking)
-        let aiClient = req.application.aiClient
         let manager = req.application.clientWSManager
-        let db = req.db
-        Task {
-            await aiClient.sendChat(
-                sessionId: sessionId,
-                content: sendReq.content,
-                db: db,
-                clientManager: manager
-            )
+
+        if messageRole == .assistant {
+            // Proactive push — deliver to iOS via WS, no AI call
+            manager.subscribeAll(to: sessionId)
+            let dto = try message.toDTO()
+            await manager.sendToSession(.chatComplete(dto), sessionId: sessionId, logger: req.logger)
+        } else {
+            // Normal user message — forward to AI
+            let channelClient = req.application.channelClient
+            manager.subscribeAll(to: sessionId)
+            Task {
+                do {
+                    try await channelClient.sendToChannel(
+                        sessionId: sessionId,
+                        content: sendReq.content
+                    )
+                } catch {
+                    req.logger.error("Failed to send to channel: \(error)")
+                    await manager.sendToSession(
+                        .error(.init(code: 500, message: "Failed to reach AI: \(error.localizedDescription)")),
+                        sessionId: sessionId,
+                        logger: req.logger
+                    )
+                }
+            }
         }
 
         return try message.toDTO()

@@ -652,6 +652,23 @@ loadCount();
 
 Each TalkClaw session maps to an OpenClaw session key: `talkclaw:dm:{sessionUUID}` (lowercased). This is how the channel plugin routes messages to the right conversation.
 
+## Proactive Messages (Cron / Scheduled Push)
+
+You can push messages to the iOS app without a user prompt — for reminders, daily digests, scheduled notifications, etc. Use the standard messages endpoint with `role: "assistant"`:
+
+```
+POST /api/v1/sessions/:id/messages
+Authorization: Bearer clw_...
+Content-Type: application/json
+
+{ "content": "Your reminder text here", "role": "assistant" }
+```
+
+This saves the message to the database and pushes it to the iOS app in real time via WebSocket. No AI call is triggered — the message appears directly in the chat as an assistant message.
+
+- Omit `role` or set `"role": "user"` for normal behavior (saves as user message + triggers AI)
+- Use `GET /api/v1/sessions` to find a session ID
+
 ## Authentication
 
 - The server auto-generates a `clw_` prefixed API token on first run

@@ -99,9 +99,12 @@ enum WidgetSectionParser {
             withJSONObject: merged,
             options: [.sortedKeys]
         ),
-        let jsonString = String(data: jsonData, encoding: .utf8) else {
+        var jsonString = String(data: jsonData, encoding: .utf8) else {
             return html
         }
+
+        // Escape </ sequences to prevent premature script tag closing (XSS vector)
+        jsonString = jsonString.replacingOccurrences(of: "</", with: "<\\/")
 
         let injection = "<script>window.TALKCLAW_VARS = \(jsonString);</script>"
         let scriptMarker = "<!-- TC:SCRIPT -->"

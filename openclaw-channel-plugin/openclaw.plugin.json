@@ -1,0 +1,21 @@
+{
+  "name": "talkclaw-channel",
+  "version": "1.0.0",
+  "description": "TalkClaw channel plugin - bridges OpenClaw to TalkClaw via HTTP webhooks",
+  "type": "channel",
+  "channel": {
+    "id": "talkclaw",
+    "name": "TalkClaw",
+    "sessionKeyPrefix": "talkclaw:dm:"
+  },
+  "config": {
+    "TALKCLAW_WEBHOOK_URL": {
+      "description": "URL of the TalkClaw webhook endpoint (e.g., http://talkclaw:8080/api/v1/webhooks/openclaw)",
+      "required": true
+    },
+    "TALKCLAW_WEBHOOK_SECRET": {
+      "description": "Shared secret for webhook authentication",
+      "required": true
+    }
+  }
+}
