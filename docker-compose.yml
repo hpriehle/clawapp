@@ -18,6 +18,8 @@ services:
         condition: service_healthy
       sandbox:
         condition: service_started
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   sandbox:
