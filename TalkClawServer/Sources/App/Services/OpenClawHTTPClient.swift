@@ -17,6 +17,8 @@ actor OpenClawHTTPClient {
     private var connectContinuation: CheckedContinuation<Void, Never>?
     private var pendingResponses: [String: CheckedContinuation<[String: Any]?, Error>] = [:]
     private var chatHandlers: [String: ChatHandler] = [:]
+    private var reconnectDelay: Duration = .seconds(2)
+    private let maxReconnectDelay: Duration = .seconds(30)
 
     final class ChatHandler: @unchecked Sendable {
         let onDelta: (String) -> Void
@@ -55,13 +57,19 @@ actor OpenClawHTTPClient {
             return
         }
 
-        if !isConnected {
-            await ensureConnected()
-            guard isConnected else {
-                logger.error("Failed to connect to OpenClaw gateway")
-                await broadcastError(clientManager: clientManager, message: "AI gateway not reachable")
-                return
+        // Retry connection up to 2 times (handles case where WS drops right as user sends)
+        for attempt in 1...2 {
+            if isConnected { break }
+            if attempt > 1 {
+                logger.warning("Connect attempt \(attempt)...")
+                try? await Task.sleep(for: .seconds(3))
             }
+            await ensureConnected()
+        }
+        guard isConnected else {
+            logger.error("Failed to connect to OpenClaw gateway after retries")
+            await broadcastError(clientManager: clientManager, message: "AI gateway not reachable")
+            return
         }
 
         let sessionKey = "talkclaw-\(sessionId.uuidString)"
@@ -104,13 +112,18 @@ actor OpenClawHTTPClient {
                     }
                 )
 
-                // Timeout: if no response in 10 minutes, clean up the handler
+                // Timeout: if no response in 10 minutes, save what we have
                 Task {
                     try? await Task.sleep(for: .seconds(600))
-                    if self.chatHandlers.removeValue(forKey: runId) != nil {
+                    if let handler = self.chatHandlers.removeValue(forKey: runId) {
                         self.logger.warning("Chat handler timed out: runId=\(runId)")
-                        Task { await self.broadcastError(clientManager: clientManager, message: "Chat timed out") }
-                        continuation.resume(returning: "")
+                        let partial = handler.accumulatedText
+                        if !partial.isEmpty {
+                            continuation.resume(returning: partial + "\n\n_(response timed out)_")
+                        } else {
+                            Task { await self.broadcastError(clientManager: clientManager, message: "Chat timed out") }
+                            continuation.resume(returning: "")
+                        }
                     }
                 }
             }
@@ -215,12 +228,21 @@ actor OpenClawHTTPClient {
         }
         pendingResponses.removeAll()
         for (key, handler) in chatHandlers {
-            handler.onError("Gateway disconnected")
+            let partial = handler.accumulatedText
+            if !partial.isEmpty {
+                // Save what we have instead of losing the entire response
+                handler.onFinal(partial + "\n\n_(response interrupted — connection lost)_")
+            } else {
+                handler.onError("Gateway disconnected")
+            }
             chatHandlers.removeValue(forKey: key)
         }
-        // Auto-reconnect after 5s
+        // Auto-reconnect with exponential backoff
+        let delay = reconnectDelay
+        reconnectDelay = min(reconnectDelay * 2, maxReconnectDelay)
+        logger.info("Reconnecting in \(delay)...")
         Task {
-            try? await Task.sleep(for: .seconds(5))
+            try? await Task.sleep(for: delay)
             startConnection()
         }
     }
@@ -315,7 +337,9 @@ actor OpenClawHTTPClient {
         let ok = json["ok"] as? Bool ?? false
         if ok && !isConnected {
             isConnected = true
+            reconnectDelay = .seconds(2)  // Reset backoff on success
             logger.info("OpenClaw gateway authenticated")
+            startPingTimer()
             if let cont = connectContinuation {
                 connectContinuation = nil
                 cont.resume()
@@ -326,6 +350,18 @@ actor OpenClawHTTPClient {
             if let cont = connectContinuation {
                 connectContinuation = nil
                 cont.resume()
+            }
+        }
+    }
+
+    // MARK: - Keepalive
+
+    private func startPingTimer() {
+        Task {
+            while isConnected, let ws, !ws.isClosed {
+                try? await Task.sleep(for: .seconds(30))
+                guard isConnected, !ws.isClosed else { break }
+                try? await ws.sendPing()
             }
         }
     }
