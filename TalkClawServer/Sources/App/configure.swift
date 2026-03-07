@@ -60,7 +60,8 @@ func configure(_ app: Application) throws {
     let channelClient = OpenClawChannelClient(
         baseURL: Environment.get("OPENCLAW_URL") ?? "",
         token: Environment.get("OPENCLAW_TOKEN") ?? "",
-        logger: app.logger
+        logger: app.logger,
+        httpClient: app.http.client.shared
     )
     app.storage[AIClientKey.self] = channelClient
 

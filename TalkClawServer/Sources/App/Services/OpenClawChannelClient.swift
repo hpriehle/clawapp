@@ -2,14 +2,15 @@ import Vapor
 import Fluent
 import SharedModels
 import Foundation
-#if canImport(FoundationNetworking)
-import FoundationNetworking
-#endif
+import AsyncHTTPClient
+import NIOCore
+import NIOHTTP1
 
 struct OpenClawChannelClient: Sendable {
     let baseURL: String
     let token: String
     let logger: Logger
+    let httpClient: HTTPClient
 
     /// Sends a user message to the OpenClaw gateway and streams the response
     /// back to iOS clients via WebSocket in real time.
@@ -27,76 +28,89 @@ struct OpenClawChannelClient: Sendable {
         let messageId = UUID()
         let sessionKey = "talkclaw:dm:\(sessionId.uuidString.lowercased())"
 
-        // Build the request
-        guard let url = URL(string: "\(baseURL)/v1/chat/completions") else {
-            logger.error("Invalid OPENCLAW_URL: \(baseURL)")
-            await manager.sendToSession(
-                .error(.init(code: 500, message: "Invalid AI backend URL")),
-                sessionId: sessionId, logger: logger
-            )
-            return
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(sessionKey, forHTTPHeaderField: "x-openclaw-session-key")
-
-        let body: [String: Any] = [
+        let bodyJSON: [String: Any] = [
             "model": "openclaw:main",
             "messages": [["role": "user", "content": content]],
             "stream": true
         ]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        guard let bodyData = try? JSONSerialization.data(withJSONObject: bodyJSON) else {
+            logger.error("Failed to serialize chat request body")
+            return
+        }
 
         do {
-            let (bytes, response) = try await URLSession.shared.bytes(for: request)
+            var request = HTTPClientRequest(url: "\(baseURL)/v1/chat/completions")
+            request.method = .POST
+            request.headers.add(name: "Authorization", value: "Bearer \(token)")
+            request.headers.add(name: "Content-Type", value: "application/json")
+            request.headers.add(name: "x-openclaw-session-key", value: sessionKey)
+            request.body = .bytes(ByteBuffer(data: bodyData))
 
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode) else {
-                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-                logger.error("OpenClaw returned HTTP \(status)")
+            let response = try await httpClient.execute(request, timeout: .seconds(120))
+
+            guard response.status == .ok else {
+                logger.error("OpenClaw returned HTTP \(response.status.code)")
                 await manager.sendToSession(
-                    .error(.init(code: status, message: "AI backend returned HTTP \(status)")),
+                    .error(.init(code: Int(response.status.code), message: "AI backend returned HTTP \(response.status.code)")),
                     sessionId: sessionId, logger: logger
                 )
                 return
             }
 
             var accumulatedText = ""
+            var lineBuffer = ""
 
-            for try await line in bytes.lines {
-                guard line.hasPrefix("data: ") else { continue }
-                let payload = String(line.dropFirst(6))
+            for try await buffer in response.body {
+                let chunk = String(buffer: buffer)
+                lineBuffer += chunk
 
-                if payload == "[DONE]" {
-                    break
+                // Process complete lines
+                while let newlineRange = lineBuffer.range(of: "\n") {
+                    let line = String(lineBuffer[lineBuffer.startIndex..<newlineRange.lowerBound])
+                    lineBuffer = String(lineBuffer[newlineRange.upperBound...])
+
+                    guard line.hasPrefix("data: ") else { continue }
+                    let payload = String(line.dropFirst(6))
+
+                    if payload == "[DONE]" {
+                        break
+                    }
+
+                    guard let data = payload.data(using: .utf8),
+                          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                          let choices = json["choices"] as? [[String: Any]],
+                          let delta = choices.first?["delta"] as? [String: Any],
+                          let deltaContent = delta["content"] as? String else {
+                        continue
+                    }
+
+                    accumulatedText += deltaContent
+
+                    let deltaPayload = WSMessage.ChatDeltaPayload(
+                        sessionId: sessionId,
+                        delta: deltaContent,
+                        messageId: messageId
+                    )
+                    await manager.sendToSession(
+                        .chatDelta(deltaPayload),
+                        sessionId: sessionId, logger: logger
+                    )
                 }
-
-                guard let data = payload.data(using: .utf8),
-                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let choices = json["choices"] as? [[String: Any]],
-                      let delta = choices.first?["delta"] as? [String: Any],
-                      let content = delta["content"] as? String else {
-                    continue
-                }
-
-                accumulatedText += content
-
-                // Send delta to iOS clients
-                let deltaPayload = WSMessage.ChatDeltaPayload(
-                    sessionId: sessionId,
-                    delta: content,
-                    messageId: messageId
-                )
-                await manager.sendToSession(
-                    .chatDelta(deltaPayload),
-                    sessionId: sessionId, logger: logger
-                )
             }
 
-            // Save the complete message
+            // Process any remaining data in buffer
+            if !lineBuffer.isEmpty && lineBuffer.hasPrefix("data: ") {
+                let payload = String(lineBuffer.dropFirst(6)).trimmingCharacters(in: .whitespacesAndNewlines)
+                if payload != "[DONE]",
+                   let data = payload.data(using: .utf8),
+                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let choices = json["choices"] as? [[String: Any]],
+                   let delta = choices.first?["delta"] as? [String: Any],
+                   let deltaContent = delta["content"] as? String {
+                    accumulatedText += deltaContent
+                }
+            }
+
             guard !accumulatedText.isEmpty else {
                 logger.warning("OpenClaw returned empty response for session \(sessionId)")
                 return
@@ -115,14 +129,12 @@ struct OpenClawChannelClient: Sendable {
                 try await session.save(on: db)
             }
 
-            // Send chatComplete to iOS clients
             let dto = try message.toDTO()
             await manager.sendToSession(
                 .chatComplete(dto),
                 sessionId: sessionId, logger: logger
             )
 
-            // Auto-title if needed
             try? await autoTitleIfNeeded(sessionId: sessionId, db: db, manager: manager)
 
         } catch {
