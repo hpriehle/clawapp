@@ -1,0 +1,13 @@
+{
+  "name": "openclaw-channel-talkclaw",
+  "version": "1.0.0",
+  "description": "OpenClaw channel plugin for TalkClaw iOS app",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

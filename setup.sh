@@ -15,6 +15,98 @@ err()  { echo -e "${RED}[✗]${NC} $1" >&2; }
 ask()  { echo -en "${BLUE}[?]${NC} $1"; }
 
 TALKCLAW_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FROM_OPENCLAW=false
+
+# ── Parse Arguments ────────────────────────────────────────────────────────
+
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --from-openclaw) FROM_OPENCLAW=true; shift ;;
+            --qr) show_qr; exit 0 ;;
+            *) shift ;;
+        esac
+    done
+}
+
+# ── Quick QR Code (for reconnecting a new device) ─────────────────────────
+
+show_qr() {
+    local token=""
+    local server=""
+
+    # Try .env file first
+    if [[ -f "$TALKCLAW_DIR/.env" ]]; then
+        token=$(grep '^API_TOKEN=' "$TALKCLAW_DIR/.env" 2>/dev/null | cut -d= -f2- || true)
+    fi
+
+    # Try reading from Docker volume
+    if [[ -z "$token" ]]; then
+        token=$(docker compose -f "$TALKCLAW_DIR/docker-compose.yml" exec -T talkclaw cat /data/.talkclaw-token 2>/dev/null || true)
+    fi
+
+    # Try Docker logs
+    if [[ -z "$token" ]]; then
+        token=$(docker compose -f "$TALKCLAW_DIR/docker-compose.yml" logs talkclaw 2>&1 | grep -o 'clw_[a-f0-9]*' | head -1 || true)
+    fi
+
+    if [[ -z "$token" ]]; then
+        err "Could not find API token. Is the server running?"
+        echo "  Check: docker compose logs talkclaw"
+        exit 1
+    fi
+
+    # Determine server URL
+    # Check if there's a Cloudflare tunnel hostname
+    if [[ -f "$HOME/.cloudflared/config.yml" ]]; then
+        local hostname
+        hostname=$(grep 'hostname:' "$HOME/.cloudflared/config.yml" 2>/dev/null | head -1 | awk '{print $NF}' || true)
+        if [[ -n "$hostname" ]]; then
+            server="https://$hostname"
+        fi
+    fi
+
+    # Check for Tailscale IP
+    if [[ -z "$server" ]] && command -v tailscale &>/dev/null; then
+        local ts_ip
+        ts_ip=$(tailscale ip -4 2>/dev/null || true)
+        if [[ -n "$ts_ip" ]]; then
+            server="http://${ts_ip}:8080"
+        fi
+    fi
+
+    # Fallback to local IP
+    if [[ -z "$server" ]]; then
+        detect_os
+        local ip
+        ip=$(get_local_ip)
+        server="http://${ip}:8080"
+    fi
+
+    echo ""
+    echo -e "${BOLD}TalkClaw Connection${NC}"
+    echo ""
+    echo -e "  ${GREEN}Server:${NC}  $server"
+    echo -e "  ${GREEN}Token:${NC}   $token"
+
+    local config_json="{\"server\":\"${server}\",\"token\":\"${token}\"}"
+    local config_b64
+    config_b64=$(echo -n "$config_json" | base64 | tr -d '\n')
+    local setup_url="talkclaw://setup?config=${config_b64}"
+
+    echo ""
+    echo -e "${BOLD}Scan with TalkClaw app:${NC}"
+    echo ""
+
+    if command -v qrencode &>/dev/null; then
+        qrencode -t ANSIUTF8 -m 2 "$setup_url"
+    else
+        echo "  Install qrencode for QR display: brew install qrencode / apt install qrencode"
+        echo ""
+        echo "  Setup URL: $setup_url"
+    fi
+    echo ""
+}
 
 # ── OS Detection ────────────────────────────────────────────────────────────
 
@@ -106,9 +198,52 @@ check_ports() {
     fi
 }
 
-# ── Step 2: OpenClaw Connection Details ──────────────────────────────────
+# ── Step 2: Detect or Ask for OpenClaw Details ─────────────────────────────
+
+detect_openclaw() {
+    local config_file="$HOME/.openclaw/openclaw.json"
+
+    if [[ ! -f "$config_file" ]]; then
+        return 1
+    fi
+
+    # Read gateway token
+    if command -v jq &>/dev/null; then
+        GATEWAY_TOKEN=$(jq -r '.gateway.auth.token // empty' "$config_file" 2>/dev/null || true)
+        OPENCLAW_WORKSPACE=$(jq -r '.workspace // empty' "$config_file" 2>/dev/null || true)
+        OPENCLAW_EXTENSIONS=$(jq -r '.extensions.path // empty' "$config_file" 2>/dev/null || true)
+    else
+        GATEWAY_TOKEN=$(grep -o '"token"[[:space:]]*:[[:space:]]*"[^"]*"' "$config_file" 2>/dev/null | head -1 | sed 's/.*"token"[[:space:]]*:[[:space:]]*"//; s/"//' || true)
+        OPENCLAW_WORKSPACE=$(grep -o '"workspace"[[:space:]]*:[[:space:]]*"[^"]*"' "$config_file" 2>/dev/null | head -1 | sed 's/.*"workspace"[[:space:]]*:[[:space:]]*"//; s/"//' || true)
+        OPENCLAW_EXTENSIONS=""
+    fi
+
+    if [[ -n "$GATEWAY_TOKEN" ]]; then
+        OPENCLAW_URL="http://localhost:18789"
+        log "Auto-detected OpenClaw gateway token from $config_file"
+        log "Gateway token: ${GATEWAY_TOKEN:0:12}..."
+        return 0
+    fi
+
+    return 1
+}
 
 ask_openclaw_details() {
+    # Try auto-detection first
+    if [[ "$FROM_OPENCLAW" == true ]] && detect_openclaw; then
+        log "Using OpenClaw config from ~/.openclaw/openclaw.json"
+        return
+    fi
+
+    if detect_openclaw; then
+        log "Found OpenClaw config at ~/.openclaw/openclaw.json"
+        ask "Use detected gateway token? (Y/n) "
+        read -r reply
+        if [[ ! "$reply" =~ ^[Nn] ]]; then
+            return
+        fi
+    fi
+
     echo ""
     echo -e "${BOLD}OpenClaw Gateway Connection${NC}"
     echo "TalkClaw connects to your existing OpenClaw gateway."
@@ -145,7 +280,37 @@ ask_openclaw_details() {
     fi
 }
 
-# ── Step 3: TalkClaw Server ───────────────────────────────────────────────
+# ── Step 3: Generate Secrets ───────────────────────────────────────────────
+
+generate_secrets() {
+    WEBHOOK_SECRET=$(openssl rand -hex 32)
+    API_TOKEN="clw_$(openssl rand -hex 32)"
+    log "Generated webhook secret and API token"
+}
+
+# ── Step 4: Write .env File ───────────────────────────────────────────────
+
+write_env_file() {
+    cd "$TALKCLAW_DIR"
+
+    # Rewrite localhost → host.docker.internal for Docker networking
+    DOCKER_OPENCLAW_URL="$OPENCLAW_URL"
+    if [[ "$OPENCLAW_URL" == *"localhost"* || "$OPENCLAW_URL" == *"127.0.0.1"* ]]; then
+        DOCKER_OPENCLAW_URL=$(echo "$OPENCLAW_URL" | sed 's/localhost/host.docker.internal/; s/127\.0\.0\.1/host.docker.internal/')
+        log "Rewriting localhost → host.docker.internal for Docker networking"
+    fi
+
+    cat > .env << ENVEOF
+OPENCLAW_URL=${DOCKER_OPENCLAW_URL}
+OPENCLAW_TOKEN=${GATEWAY_TOKEN}
+OPENCLAW_WEBHOOK_SECRET=${WEBHOOK_SECRET}
+API_TOKEN=${API_TOKEN}
+ENVEOF
+
+    log "Generated .env file"
+}
+
+# ── Step 5: Deploy TalkClaw ───────────────────────────────────────────────
 
 deploy_talkclaw() {
     cd "$TALKCLAW_DIR"
@@ -157,55 +322,10 @@ deploy_talkclaw() {
         exit 1
     fi
 
-    # Determine OpenClaw URL for Docker container
-    # If pointing to localhost, rewrite to host.docker.internal so the container can reach it
-    DOCKER_OPENCLAW_URL="$OPENCLAW_URL"
-    if [[ "$OPENCLAW_URL" == *"localhost"* || "$OPENCLAW_URL" == *"127.0.0.1"* ]]; then
-        DOCKER_OPENCLAW_URL=$(echo "$OPENCLAW_URL" | sed 's/localhost/host.docker.internal/; s/127\.0\.0\.1/host.docker.internal/')
-        log "Rewriting localhost → host.docker.internal for Docker networking"
+    if [[ ! -f "docker-compose.yml" ]]; then
+        err "Missing docker-compose.yml in repository root."
+        exit 1
     fi
-
-    # Generate docker-compose.yml
-    cat > docker-compose.yml << DCEOF
-services:
-  talkclaw:
-    build: .
-    ports:
-      - "8080:8080"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    environment:
-      - DATABASE_URL=postgres://talkclaw:talkclaw@db:5432/talkclaw
-      - OPENCLAW_URL=${DOCKER_OPENCLAW_URL}
-      - OPENCLAW_TOKEN=${GATEWAY_TOKEN}
-      - DATA_DIR=/data
-    volumes:
-      - app_data:/data
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: unless-stopped
-
-  db:
-    image: postgres:16-alpine
-    environment:
-      - POSTGRES_DB=talkclaw
-      - POSTGRES_USER=talkclaw
-      - POSTGRES_PASSWORD=talkclaw
-    volumes:
-      - pg_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U talkclaw"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  pg_data:
-  app_data:
-DCEOF
-
-    log "docker-compose.yml generated"
 
     # Build and start
     echo ""
@@ -229,21 +349,113 @@ DCEOF
         exit 1
     fi
 
-    # Extract API token from logs (compatible with macOS grep — no -P flag)
-    API_TOKEN=$(docker compose logs talkclaw 2>&1 | grep -o 'clw_[a-f0-9]*' | head -1)
-    if [[ -z "$API_TOKEN" ]]; then
-        # Try reading from the volume
-        API_TOKEN=$(docker compose exec talkclaw cat /data/.talkclaw-token 2>/dev/null || echo "")
+    log "API token: ${API_TOKEN:0:20}..."
+}
+
+# ── Step 6: Install Channel Plugin ────────────────────────────────────────
+
+install_channel_plugin() {
+    echo ""
+    echo -e "${BOLD}OpenClaw Channel Plugin${NC}"
+
+    local plugin_src="$TALKCLAW_DIR/openclaw-channel-plugin"
+    if [[ ! -d "$plugin_src" ]]; then
+        warn "Channel plugin source not found at $plugin_src. Skipping."
+        return
     fi
 
-    if [[ -z "$API_TOKEN" ]]; then
-        warn "Could not extract API token. Check: docker compose logs talkclaw"
+    # Find OpenClaw extensions directory
+    local extensions_dir=""
+
+    if [[ -n "${OPENCLAW_EXTENSIONS:-}" && -d "$OPENCLAW_EXTENSIONS" ]]; then
+        extensions_dir="$OPENCLAW_EXTENSIONS"
     else
-        log "API token: ${API_TOKEN:0:20}..."
+        # Check common locations
+        for dir in \
+            "$HOME/.local/lib/node_modules/openclaw/extensions" \
+            "/usr/lib/node_modules/openclaw/extensions" \
+            "$HOME/.openclaw/extensions"; do
+            if [[ -d "$dir" ]]; then
+                extensions_dir="$dir"
+                break
+            fi
+        done
+    fi
+
+    if [[ -z "$extensions_dir" ]]; then
+        if [[ "$FROM_OPENCLAW" == true ]]; then
+            warn "Could not find OpenClaw extensions directory. Skipping plugin install."
+            return
+        fi
+        ask "OpenClaw extensions directory (or press Enter to skip): "
+        read -r extensions_dir
+        if [[ -z "$extensions_dir" ]]; then
+            warn "Skipping channel plugin install."
+            echo "  Copy openclaw-channel-plugin/ to your OpenClaw extensions directory manually."
+            return
+        fi
+    fi
+
+    local plugin_dest="$extensions_dir/talkclaw"
+    mkdir -p "$plugin_dest"
+    cp -r "$plugin_src/"* "$plugin_dest/"
+    log "Copied channel plugin to $plugin_dest"
+
+    # Build the plugin
+    if command -v npm &>/dev/null; then
+        (cd "$plugin_dest" && npm install --silent 2>/dev/null && npm run build --silent 2>/dev/null) || true
+        log "Built channel plugin"
+    else
+        warn "npm not found — run 'npm install && npm run build' in $plugin_dest manually"
     fi
 }
 
-# ── Step 4: Cloudflare Tunnel ─────────────────────────────────────────────
+# ── Step 7: Register Channel in OpenClaw Config ──────────────────────────
+
+register_channel() {
+    local config_file="$HOME/.openclaw/openclaw.json"
+
+    if [[ ! -f "$config_file" ]]; then
+        warn "OpenClaw config not found at $config_file. Skipping channel registration."
+        echo "  Add the talkclaw channel manually to your openclaw.json."
+        return
+    fi
+
+    if ! command -v jq &>/dev/null; then
+        warn "jq not found — cannot auto-register channel in openclaw.json."
+        echo "  Add the following to channels in $config_file:"
+        echo "    \"talkclaw\": {"
+        echo "      \"enabled\": true,"
+        echo "      \"serverUrl\": \"http://localhost:8080\","
+        echo "      \"apiToken\": \"${API_TOKEN}\","
+        echo "      \"webhookPath\": \"/webhook/talkclaw\","
+        echo "      \"webhookSecret\": \"${WEBHOOK_SECRET}\","
+        echo "      \"dmPolicy\": \"open\","
+        echo "      \"allowFrom\": [\"*\"]"
+        echo "    }"
+        return
+    fi
+
+    # Add or update the talkclaw channel config
+    local tmp_file
+    tmp_file=$(mktemp)
+
+    jq --arg token "$API_TOKEN" \
+       --arg secret "$WEBHOOK_SECRET" \
+       '.channels.talkclaw = {
+            "enabled": true,
+            "serverUrl": "http://localhost:8080",
+            "apiToken": $token,
+            "webhookPath": "/webhook/talkclaw",
+            "webhookSecret": $secret,
+            "dmPolicy": "open",
+            "allowFrom": ["*"]
+        }' "$config_file" > "$tmp_file" && mv "$tmp_file" "$config_file"
+
+    log "Registered talkclaw channel in $config_file"
+}
+
+# ── Step 8: Cloudflare Tunnel ─────────────────────────────────────────────
 
 setup_tunnel() {
     echo ""
@@ -382,29 +594,30 @@ CFEOF
     log "Cloudflare Tunnel running: $SERVER_URL"
 }
 
-# ── Step 5: Install OpenClaw Skill ────────────────────────────────────────
+# ── Step 9: Install OpenClaw Skill ────────────────────────────────────────
 
 install_openclaw_skill() {
     echo ""
     echo -e "${BOLD}OpenClaw Agent Knowledge${NC}"
-    echo "TalkClaw includes a skill file that teaches your OpenClaw agent about the app"
-    echo "— what it can do, how messages arrive, and what the user sees on their phone."
-    echo ""
 
     # Find the OpenClaw workspace
-    local openclaw_workspace=""
+    local openclaw_workspace="${OPENCLAW_WORKSPACE:-}"
 
-    # Check common locations
-    if [[ -f "$HOME/.openclaw/openclaw.json" ]]; then
-        # Try to read workspace from config
-        local config_workspace
-        config_workspace=$(grep -o '"workspace"[[:space:]]*:[[:space:]]*"[^"]*"' "$HOME/.openclaw/openclaw.json" 2>/dev/null | head -1 | sed 's/.*"workspace"[[:space:]]*:[[:space:]]*"//; s/"//')
-        if [[ -n "$config_workspace" && -d "$config_workspace" ]]; then
-            openclaw_workspace="$config_workspace"
+    if [[ -z "$openclaw_workspace" || ! -d "$openclaw_workspace" ]]; then
+        if [[ -f "$HOME/.openclaw/openclaw.json" ]]; then
+            local config_workspace
+            if command -v jq &>/dev/null; then
+                config_workspace=$(jq -r '.workspace // empty' "$HOME/.openclaw/openclaw.json" 2>/dev/null || true)
+            else
+                config_workspace=$(grep -o '"workspace"[[:space:]]*:[[:space:]]*"[^"]*"' "$HOME/.openclaw/openclaw.json" 2>/dev/null | head -1 | sed 's/.*"workspace"[[:space:]]*:[[:space:]]*"//; s/"//' || true)
+            fi
+            if [[ -n "$config_workspace" && -d "$config_workspace" ]]; then
+                openclaw_workspace="$config_workspace"
+            fi
         fi
     fi
 
-    # If not found from config, look for AGENTS.md in common places
+    # Check common locations
     if [[ -z "$openclaw_workspace" ]]; then
         for dir in "$HOME/openclaw" "$HOME/dev/openclaw" "$HOME/.openclaw/workspace"; do
             if [[ -f "$dir/AGENTS.md" ]]; then
@@ -414,8 +627,8 @@ install_openclaw_skill() {
         done
     fi
 
-    if [[ -z "$openclaw_workspace" ]]; then
-        ask "Where is your OpenClaw workspace? (folder with AGENTS.md): "
+    if [[ -z "$openclaw_workspace" ]] && [[ "$FROM_OPENCLAW" != true ]]; then
+        ask "Where is your OpenClaw workspace? (folder with AGENTS.md, or Enter to skip): "
         read -r openclaw_workspace
     fi
 
@@ -423,14 +636,6 @@ install_openclaw_skill() {
         warn "Could not find OpenClaw workspace. Skipping skill install."
         echo "  You can manually copy openclaw-skill/ to your workspace's skills/talkclaw/ later."
         return
-    fi
-
-    # Verify it's actually an OpenClaw workspace
-    if [[ ! -f "$openclaw_workspace/AGENTS.md" ]]; then
-        warn "$openclaw_workspace doesn't look like an OpenClaw workspace (no AGENTS.md)."
-        ask "Install anyway? (y/N) "
-        read -r reply
-        [[ "$reply" =~ ^[Yy] ]] || return
     fi
 
     # Copy skill files
@@ -444,19 +649,19 @@ install_openclaw_skill() {
 
     mkdir -p "$skill_dest"
     cp "$skill_src/SKILL.md" "$skill_dest/SKILL.md"
-    cp "$skill_src/_meta.json" "$skill_dest/_meta.json"
+    if [[ -f "$skill_src/_meta.json" ]]; then
+        cp "$skill_src/_meta.json" "$skill_dest/_meta.json"
+    fi
     log "Installed TalkClaw skill to $skill_dest"
 
-    # Append TalkClaw connection details to TOOLS.md
+    # Update TOOLS.md with connection details
     local tools_file="$openclaw_workspace/TOOLS.md"
     local server="${SERVER_URL:-http://localhost:8080}"
 
     # Remove any existing TalkClaw section from TOOLS.md
     if [[ -f "$tools_file" ]] && grep -q "## TalkClaw Server" "$tools_file"; then
-        # Remove old section (from ## TalkClaw Server to next ## or end of file)
         sed -i.bak '/^## TalkClaw Server/,/^## [^C]/{/^## [^C]/!d;}' "$tools_file" 2>/dev/null || \
             sed -i '' '/^## TalkClaw Server/,/^## [^C]/{/^## [^C]/!d;}' "$tools_file" 2>/dev/null || true
-        # Clean up: remove the header if it's now empty
         sed -i.bak '/^## TalkClaw Server$/d' "$tools_file" 2>/dev/null || \
             sed -i '' '/^## TalkClaw Server$/d' "$tools_file" 2>/dev/null || true
         rm -f "${tools_file}.bak"
@@ -477,7 +682,7 @@ TOOLSEOF
     log "Updated $tools_file with TalkClaw connection details"
 }
 
-# ── Step 6: Print Connection Details + QR Code ───────────────────────────
+# ── Step 10: Print Connection Details + QR Code ──────────────────────────
 
 install_qrencode() {
     if command -v qrencode &>/dev/null; then return 0; fi
@@ -512,7 +717,7 @@ print_connection_details() {
     echo -e "${BOLD}╠══════════════════════════════════════════════════════════╣${NC}"
     echo -e "${BOLD}║${NC}                                                          ${BOLD}║${NC}"
     echo -e "${BOLD}║${NC}  ${GREEN}Server URL:${NC}  ${server}"
-    echo -e "${BOLD}║${NC}  ${GREEN}API Token:${NC}   ${token:-check docker compose logs talkclaw}"
+    echo -e "${BOLD}║${NC}  ${GREEN}API Token:${NC}   ${token}"
     echo -e "${BOLD}║${NC}                                                          ${BOLD}║${NC}"
     echo -e "${BOLD}╚══════════════════════════════════════════════════════════╝${NC}"
 
@@ -521,7 +726,7 @@ print_connection_details() {
         local config_json="{\"server\":\"${server}\",\"token\":\"${token}\"}"
         local config_b64
         config_b64=$(echo -n "$config_json" | base64 | tr -d '\n')
-        local setup_url="https://talk-claw.ai/setup?config=${config_b64}"
+        local setup_url="talkclaw://setup?config=${config_b64}"
 
         echo ""
         echo -e "${BOLD}Scan this QR code with TalkClaw to connect instantly:${NC}"
@@ -531,13 +736,10 @@ print_connection_details() {
             qrencode -t ANSIUTF8 -m 2 "$setup_url"
         else
             warn "Install qrencode to display QR code: brew install qrencode (macOS) or apt install qrencode (Linux)"
-            echo ""
-            echo "  Or open this URL on your phone:"
-            echo "  $setup_url"
         fi
 
         echo ""
-        echo "  Setup URL: $setup_url"
+        echo "  Or enter the server URL and API token manually in the app."
     fi
 
     echo ""
@@ -560,12 +762,20 @@ main() {
     SERVER_URL=""
     GATEWAY_TOKEN=""
     OPENCLAW_URL=""
+    WEBHOOK_SECRET=""
+    OPENCLAW_WORKSPACE=""
+    OPENCLAW_EXTENSIONS=""
 
+    parse_args "$@"
     detect_os
     ask_openclaw_details
+    generate_secrets
+    write_env_file
     install_docker
     check_ports
     deploy_talkclaw
+    install_channel_plugin
+    register_channel
     setup_tunnel
     install_openclaw_skill
     print_connection_details

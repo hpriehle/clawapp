@@ -265,7 +265,13 @@ private struct DashboardCardView: View {
             }
             .padding(.horizontal, Theme.Spacing.sm)
             .padding(.vertical, Theme.Spacing.xs)
-            .background(Theme.Colors.surface2.opacity(0.5))
+            .background(
+                Theme.Colors.surface2.opacity(0.5),
+                in: UnevenRoundedRectangle(
+                    topLeadingRadius: Theme.Radius.lg,
+                    topTrailingRadius: Theme.Radius.lg
+                )
+            )
 
             // WebView
             if !serverURL.isEmpty {
