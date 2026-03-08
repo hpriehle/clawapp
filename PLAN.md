@@ -1886,3 +1886,451 @@ Content-Type: application/json
 **Last Updated:** 2026-03-07 19:15 UTC  
 **Addition:** Offline support & message queueing  
 **Status:** Planning Complete - Ready for Development
+
+---
+
+## 6. Widget Marketplace - Dashboard Widget Ideas
+
+### Overview
+
+**Expand TalkClaw dashboard with marketplace of reusable widgets.**
+
+**Current state:** 6 built-in widgets (Clock, Quick Notes, Countdown, Quote, Todo List, System Status)
+
+**Vision:** 50+ widget marketplace with categories for all user types
+
+### Widget Categories & Ideas
+
+#### 1. Productivity & Organization
+
+**Habit Tracker** (M, L)
+- Daily habit checkboxes with streak counter
+- Visual progress tracking
+- Categories: health, learning, work
+- Use case: Track meditation, exercise, reading
+
+**Pomodoro Timer** (S, M)
+- 25min work / 5min break cycles
+- Session counter and history
+- Sound notifications
+- Use case: Focused work sessions
+
+**Goal Progress** (S, M)
+- Progress bars for multiple goals
+- Percentage complete tracking
+- Deadline awareness
+- Use case: Book pages, word count, savings
+
+**Daily Standup** (M)
+- "Yesterday / Today / Blockers" template
+- Team collaboration
+- Daily planning
+- Use case: Remote teams, personal planning
+
+#### 2. Information & Data
+
+**Weather Widget** (S, M, L) ⭐ Priority
+- Current temperature and conditions
+- 5-day forecast (M/L)
+- Hourly breakdown (L)
+- API: Open-Meteo or OpenWeatherMap
+
+**RSS Feed Reader** (M, L)
+- Latest headlines from chosen feeds
+- Click to read full article
+- Multiple feed sources
+- Use case: News, blogs, podcasts
+
+**Stock Ticker** (S, M) ⭐ Priority
+- Live stock prices
+- % change indicators
+- Mini price charts (sparklines)
+- API: Alpha Vantage or Yahoo Finance
+
+**Crypto Tracker** (S, M)
+- BTC/ETH/major coin prices
+- 24-hour change percentages
+- Portfolio value tracking
+- API: CoinGecko or CoinMarketCap
+
+**Exchange Rates** (S, M)
+- Currency converter
+- Live exchange rates
+- Multiple currency pairs
+- Use case: Travel, international business
+
+#### 3. Communication & Social
+
+**Unread Counter** (S)
+- Badge count for TalkClaw unread messages
+- Quick notification check
+- Tap to open messages
+
+**Quick Replies** (M)
+- Canned response buttons
+- Fast message sending
+- Customizable templates
+
+**Social Stats** (M)
+- Follower counts across platforms
+- Engagement metrics
+- Growth tracking
+- Use case: Content creators
+
+#### 4. Lifestyle & Wellness
+
+**Water Tracker** (S, M) ⭐ Priority
+- Tap to add glasses
+- Daily goal progress (8 glasses)
+- Hydration reminders
+- Visual: Water glass icons, progress circle
+
+**Mood Tracker** (S, M) ⭐ Priority
+- Log daily mood with emoji
+- Weekly trends and patterns
+- Mental health awareness
+- Visual: Emoji selector, calendar heatmap
+
+**Gratitude Journal** (M, L)
+- Daily gratitude entry
+- Browse past entries
+- Positive mindset practice
+- Search previous gratitudes
+
+**Exercise Logger** (M)
+- Quick workout logging
+- Track weekly activity
+- Exercise types and duration
+- Fitness goal tracking
+
+**Meditation Timer** (S, M)
+- Guided meditation durations (5, 10, 15, 20 min)
+- Session streak tracking
+- Calm design with breathe animation
+- Sound bell at completion
+
+#### 5. Focus & Motivation
+
+**Focus Mode** (S, M)
+- Deep work timer
+- Block distraction indicator
+- Session tracking
+- Pomodoro integration option
+
+**Daily Affirmation** (S, M)
+- Rotating positive affirmations
+- Refresh button for new affirmation
+- Motivational quotes
+- Morning boost
+
+**Win of the Day** (M)
+- Log one daily win
+- Weekly review of accomplishments
+- Celebrate small victories
+- Build positive momentum
+
+#### 6. Developer & Technical
+
+**GitHub Stats** (S, M, L) ⭐ Priority
+- Commit activity graph
+- Pull request status
+- Repository stars
+- Contribution streaks
+- OAuth: GitHub API integration
+
+**API Monitor** (M)
+- Endpoint health checks
+- Response time tracking
+- Uptime percentage
+- Alert on failures
+
+**Code Snippet Library** (M, L)
+- Save/search code snippets
+- Syntax highlighting
+- Language tags
+- Quick copy to clipboard
+
+**Bug Tracker** (M, L)
+- Personal bug logging
+- Priority tagging
+- Status tracking (open/in-progress/resolved)
+- Link to code locations
+
+#### 7. Calendar & Time
+
+**Month View Calendar** (M, L) ⭐ Priority
+- Traditional month grid
+- Mark important dates
+- Visual date reference
+- Event integration (future)
+
+**Upcoming Events** (S, M)
+- Next 3-5 events
+- Countdown to each
+- Event time display
+- Quick event add
+
+**Time Zones** (S, M)
+- Multiple timezone clocks
+- City names with local times
+- AM/PM indicators
+- Use case: Remote teams, travel
+
+**Meeting Timer** (S, M)
+- Track meeting duration
+- Overtime alerts
+- Elapsed time display
+- Stay on schedule
+
+#### 8. Finance & Business
+
+**Expense Tracker** (M, L) ⭐ Priority
+- Quick expense entry
+- Category breakdown
+- Weekly/monthly totals
+- Budget awareness
+
+**Invoice Counter** (S, M)
+- Outstanding invoices
+- Total amount owed
+- Payment status
+- Use case: Freelancers
+
+**Revenue Dashboard** (M, L)
+- Daily/weekly/monthly revenue
+- Trend graph
+- Growth percentage
+- Business owners
+
+#### 9. Entertainment & Fun
+
+**Spotify Now Playing** (S, M) ⭐ Priority
+- Current track display
+- Album artwork
+- Play/pause controls
+- OAuth: Spotify API integration
+
+**Reading List** (M, L)
+- Books to read
+- Currently reading with progress
+- Finished list
+- Book tracking
+
+**Movie/TV Watchlist** (M, L)
+- Shows to watch
+- Mark as watched
+- Personal ratings
+- Entertainment tracking
+
+**Dice Roller** (S)
+- Roll various dice (d6, d20, etc.)
+- Multiple dice at once
+- Gaming utility
+- Random decision maker
+
+**Random Compliment** (S, M)
+- Mood boost generator
+- Refresh for new compliment
+- Positive reinforcement
+- Fun interaction
+
+#### 10. Home & Utilities
+
+**Shopping List** (M, L)
+- Add grocery items
+- Category organization
+- Check off purchased
+- Shared list option (future)
+
+**Recipe of the Day** (M, L)
+- Random recipe suggestions
+- Ingredient lists
+- Cooking instructions
+- Meal planning
+
+**Plant Watering Tracker** (M)
+- Track plant watering schedule
+- Last watered dates
+- Next watering due
+- Plant care reminders
+
+**Package Tracker** (M)
+- Delivery tracking numbers
+- Estimated arrival dates
+- Status updates
+- Order monitoring
+
+#### 11. Learning & Knowledge
+
+**Flashcards** (M, L)
+- Study flashcard decks
+- Flip to reveal answer
+- Deck progress tracking
+- Spaced repetition (future)
+
+**Word of the Day** (S, M)
+- Daily vocabulary word
+- Definition and example
+- Pronunciation guide
+- Vocabulary building
+
+**Language Practice** (M)
+- Daily phrase in target language
+- Translation
+- Audio pronunciation (future)
+- Language learning
+
+**TIL (Today I Learned)** (M)
+- Log interesting facts
+- Browse past learnings
+- Knowledge collection
+- Searchable archive
+
+### Implementation Priority
+
+**Top 10 Most Marketable (Build First):**
+
+1. **Weather Widget** ⭐ - Universal appeal, everyone needs weather
+2. **Habit Tracker** ⭐ - Trending productivity, gamification
+3. **Pomodoro Timer** ⭐ - Proven technique, developer favorite
+4. **Water Tracker** ⭐ - Simple, health-focused, viral potential
+5. **Stock Ticker** ⭐ - Finance crowd, high engagement
+6. **Month Calendar** ⭐ - Visual utility, date reference
+7. **Spotify Now Playing** ⭐ - Music integration, brand value
+8. **Expense Tracker** ⭐ - Universal financial need
+9. **GitHub Stats** ⭐ - Developer community (TalkClaw audience)
+10. **Mood Tracker** ⭐ - Mental health awareness, trending
+
+### Implementation Phases
+
+**Phase 1 - Quick Wins (2-3 weeks):**
+- Weather Widget (Open-Meteo API)
+- Habit Tracker (frontend + KV storage)
+- Pomodoro Timer (timer logic)
+- Water Tracker (counter + goals)
+
+**Phase 2 - Integrations (3-4 weeks):**
+- Spotify Now Playing (OAuth + API)
+- GitHub Stats (API + caching)
+- Stock Ticker (API integration)
+- Expense Tracker (storage + export)
+
+**Phase 3 - Advanced (4-6 weeks):**
+- Month Calendar (date library)
+- Flashcards (deck management)
+- RSS Reader (feed parsing)
+- API Monitor (polling + alerts)
+
+**Phase 4 - Marketplace Platform (6-8 weeks):**
+- User-submitted widgets
+- Widget ratings/reviews
+- Category browsing
+- Search/discovery
+- Installation analytics
+
+### Technical Patterns
+
+**Common Widget Patterns:**
+
+**Tracker Widgets:**
+- Add/increment action
+- Daily/weekly view
+- Progress visualization
+- Streak counter
+- Data export
+
+**Information Widgets:**
+- Auto-refresh logic
+- API caching
+- Error states
+- Loading skeletons
+- Data freshness indicator
+
+**Timer Widgets:**
+- Start/pause/reset controls
+- Sound notifications
+- Background execution
+- Session history
+- Progress rings
+
+**List Widgets:**
+- Add item input
+- Item actions (check, delete, edit)
+- Persistence via KV storage
+- Scrollable view
+- Empty state handling
+
+**Display Widgets:**
+- Read-only information
+- Refresh button
+- Minimal interaction
+- Large typography
+- Icon-focused design
+
+### Marketplace Features
+
+**Discovery:**
+- Browse by category
+- Search widgets
+- Featured widgets
+- Trending/popular
+- New releases
+
+**Installation:**
+- One-click add to dashboard
+- Size selection (S/M/L)
+- Position preference
+- Auto-refresh option
+
+**Management:**
+- Installed widgets list
+- Update notifications
+- Remove/reinstall
+- Widget settings
+
+**User Contribution (Future):**
+- Submit custom widgets
+- Widget approval process
+- Rating system
+- Revenue sharing
+
+### API Integrations Required
+
+**External APIs:**
+- Weather: Open-Meteo (free) or OpenWeatherMap
+- Stocks: Alpha Vantage or Yahoo Finance
+- Crypto: CoinGecko or CoinMarketCap
+- Spotify: OAuth + Web API
+- GitHub: OAuth + REST API
+- RSS: Feed parser library
+
+**Rate Limiting:**
+- Cache API responses
+- Respect API rate limits
+- Fallback for failures
+- User API key option (premium)
+
+### Monetization Strategy
+
+**Free Tier:**
+- Basic widgets (Clock, Notes, Todo)
+- 5 widget limit on dashboard
+- Standard refresh rates
+
+**Premium Tier ($5/month):**
+- All widgets unlimited
+- Real-time updates (Stock, Crypto)
+- Custom widget creation
+- Priority support
+- Export data features
+
+**Integration Widgets:**
+- Require user API keys (Spotify, GitHub)
+- OAuth connection flow
+- Privacy-focused (no data storage)
+
+---
+
+**Last Updated:** 2026-03-08 00:10 UTC  
+**Addition:** Widget Marketplace expansion plan (44 new widgets)  
+**Status:** Planning Complete - Ready for Implementation
