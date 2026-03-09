@@ -33,11 +33,14 @@ services:
     environment:
       - DATABASE_URL=postgres://talkclaw:talkclaw@db:5432/talkclaw
       - SANDBOX_SOCKET=/sandbox/talkclaw-sandbox.sock
+      - WIDGET_BRIDGE_TOKEN=${BRIDGE_TOKEN:-}
     volumes:
       - sandbox_sock:/sandbox
     depends_on:
       db:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   db:

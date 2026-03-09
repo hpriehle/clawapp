@@ -1,0 +1,12 @@
+{
+  "name": "talkclaw-bridge",
+  "version": "1.0.0",
+  "description": "Data bridge API for TalkClaw widgets — exposes host CLI tools and system data over HTTP",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "fastify": "^5.2.0"
+  }
+}

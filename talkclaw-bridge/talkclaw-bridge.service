@@ -1,0 +1,14 @@
+[Unit]
+Description=TalkClaw Data Bridge API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/riehle/talkclaw/talkclaw-bridge
+ExecStart=/usr/bin/node src/index.js
+Restart=always
+RestartSec=5
+EnvironmentFile=/home/riehle/talkclaw/.env
+
+[Install]
+WantedBy=default.target

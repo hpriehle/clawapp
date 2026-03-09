@@ -625,6 +625,34 @@ const raw = await ctx.fetch('http://host.docker.internal:8123/api/states', {
 return { status: 200, json: JSON.parse(raw) };
 ```
 
+**Pattern 5: Data Bridge (PREFERRED for calendar, email, system data)**
+
+The TalkClaw Data Bridge runs on the host at port 3847. It wraps CLI tools (like `gog` for Google services) as JSON HTTP endpoints. **Always use the bridge for host-local data** — the sandbox cannot run shell commands.
+
+```javascript
+const token = ctx.env.get('BRIDGE_TOKEN');
+const raw = ctx.fetch('http://host.docker.internal:3847/api/calendar/today', {
+  headers: { 'Authorization': 'Bearer ' + token }
+});
+const data = JSON.parse(raw);
+return { status: 200, json: data };
+```
+
+**Available bridge endpoints:**
+
+| Endpoint | Description | Query params |
+|----------|-------------|--------------|
+| `GET /api/calendar/events` | Upcoming calendar events | `?days=7&max=20&calendar=primary` |
+| `GET /api/calendar/today` | Today's events | `?calendar=primary` |
+| `GET /api/mail/unread` | Unread email threads | `?max=10` |
+| `GET /api/mail/search` | Search email | `?q=from:someone&max=10` |
+| `GET /api/system/stats` | CPU, memory, disk, uptime | — |
+| `GET /api/health` | Health check (no auth) | — |
+
+All endpoints require `Authorization: Bearer {token}` except `/api/health`. The token is available via `ctx.env.get('BRIDGE_TOKEN')`.
+
+New bridge endpoints can be added on request — each is just a route file in `talkclaw-bridge/src/routes/`.
+
 ### Common Mistakes
 
 | Wrong | Right | Why |
