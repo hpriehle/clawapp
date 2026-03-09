@@ -34,14 +34,13 @@ struct ChatDetailView: View {
                 ScrollViewReader { proxy in
                     ZStack(alignment: .bottom) {
                         ScrollView {
-                            LazyVStack(alignment: .leading, spacing: Theme.Spacing.md) {
+                            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
                                 // Top inset so content starts below the floating header
                                 Color.clear.frame(height: isSearching ? 100 : 56)
 
                                 ForEach(messages) { message in
                                     MessageBubbleView(message: message)
                                         .id(message.id)
-                                        .transition(.move(edge: .bottom).combined(with: .opacity))
                                         .overlay(
                                             searchMatchIds.contains(message.id)
                                                 ? RoundedRectangle(cornerRadius: Theme.Radius.md)
@@ -72,7 +71,6 @@ struct ChatDetailView: View {
                             .padding(.horizontal, Theme.Spacing.md)
                             .padding(.vertical, Theme.Spacing.sm)
                         }
-                        .defaultScrollAnchor(.bottom)
                         .onChange(of: messages.count) {
                             scrollToBottom(proxy: proxy, animated: true)
                         }
@@ -177,9 +175,7 @@ struct ChatDetailView: View {
             flushTask?.cancel()
             streamingText = ""
             deltaBuffer = ""
-            withAnimation(Theme.Anim.spring) {
-                messages.append(message)
-            }
+            messages.append(message)
             if hapticsEnabled {
                 UIImpactFeedbackGenerator(style: .soft).impactOccurred()
             }
@@ -239,7 +235,7 @@ struct ChatDetailView: View {
 
     private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool = false) {
         if animated {
-            withAnimation(Theme.Anim.spring) {
+            withAnimation {
                 proxy.scrollTo("bottom-anchor", anchor: .bottom)
             }
         } else {
@@ -254,36 +250,36 @@ struct ChatDetailView: View {
         inputText = ""
         pendingAttachments = []
 
+        // Batch all new messages into a single append to avoid multiple onChange triggers
+        var newMessages: [MessageDTO] = []
+
         // If the agent is mid-stream, commit the partial streaming text as a message
         if isActive && !streamingText.isEmpty {
-            let partialMsg = MessageDTO(
+            newMessages.append(MessageDTO(
                 id: UUID(),
                 sessionId: session.id,
                 role: .assistant,
                 content: .text(streamingText)
-            )
-            messages.append(partialMsg)
+            ))
             streamingText = ""
         }
 
         // Add optimistic messages for attachments
         for attachment in attachmentsToSend {
             if attachment.isImage {
-                let imgMsg = MessageDTO(
+                newMessages.append(MessageDTO(
                     id: UUID(),
                     sessionId: session.id,
                     role: .user,
                     content: .image(url: URL(string: "placeholder://\(attachment.filename)")!, caption: nil)
-                )
-                messages.append(imgMsg)
+                ))
             } else {
-                let fileMsg = MessageDTO(
+                newMessages.append(MessageDTO(
                     id: UUID(),
                     sessionId: session.id,
                     role: .user,
                     content: .file(name: attachment.filename, url: URL(string: "placeholder://\(attachment.filename)")!, size: attachment.size)
-                )
-                messages.append(fileMsg)
+                ))
             }
         }
 
@@ -295,9 +291,11 @@ struct ChatDetailView: View {
                 role: .user,
                 content: .text(text)
             )
-            messages.append(userMsg)
+            newMessages.append(userMsg)
             Task { await appState.cacheManager?.cacheMessage(userMsg) }
         }
+
+        messages.append(contentsOf: newMessages)
 
         isNearBottom = true
         appState.activeSessionIds.insert(session.id)
