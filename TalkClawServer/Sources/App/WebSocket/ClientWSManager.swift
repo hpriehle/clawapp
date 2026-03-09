@@ -47,13 +47,15 @@ final class ClientWSManager: Sendable {
     }
 
     /// Send a message only to connections subscribed to the given session.
-    func sendToSession(_ message: WSMessage, sessionId: UUID, logger: Logger? = nil) async {
+    /// Returns `true` if at least one client received the message.
+    @discardableResult
+    func sendToSession(_ message: WSMessage, sessionId: UUID, logger: Logger? = nil) async -> Bool {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
 
         guard let data = try? encoder.encode(message),
               let text = String(data: data, encoding: .utf8) else {
-            return
+            return false
         }
 
         // Find all connectionIds subscribed to this session
@@ -65,7 +67,7 @@ final class ClientWSManager: Sendable {
 
         if subscribedIds.isEmpty {
             logger?.info("No subscribed connections for session \(sessionId), message dropped")
-            return
+            return false
         }
 
         let targetConnections = connections.withLockedValue { dict in
@@ -75,6 +77,7 @@ final class ClientWSManager: Sendable {
         for ws in targetConnections {
             try? await ws.send(text)
         }
+        return true
     }
 
     /// Broadcast a WebSocket message to all connected clients (session-agnostic).

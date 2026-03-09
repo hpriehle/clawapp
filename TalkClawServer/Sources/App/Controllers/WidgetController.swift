@@ -93,11 +93,22 @@ struct WidgetController: RouteCollection {
 
                 // Send complete message to subscribed clients
                 let msgDTO = try widgetMsg.toDTO()
-                await req.application.clientWSManager.sendToSession(
+                let delivered = await req.application.clientWSManager.sendToSession(
                     .chatComplete(msgDTO),
                     sessionId: sessionId,
                     logger: req.logger
                 )
+
+                // Fallback to push notification if no WS clients are connected
+                if !delivered {
+                    let session = try? await Session.find(sessionId, on: req.db)
+                    await req.application.pushService?.sendPush(
+                        title: session?.title ?? "TalkClaw",
+                        body: String(msgDTO.content.previewText.prefix(150)),
+                        sessionId: sessionId,
+                        db: req.db
+                    )
+                }
             } catch {
                 req.logger.error("Failed to create widget message: \(error)")
             }

@@ -11,6 +11,11 @@ services:
       - API_TOKEN=${API_TOKEN:-}
       - DATA_DIR=/data
       - SANDBOX_SOCKET=/sandbox/talkclaw-sandbox.sock
+      - APNS_KEY_P8_BASE64=${APNS_KEY_P8_BASE64:-}
+      - APNS_KEY_ID=${APNS_KEY_ID:-}
+      - APNS_TEAM_ID=${APNS_TEAM_ID:-}
+      - APNS_ENVIRONMENT=${APNS_ENVIRONMENT:-production}
+      - APNS_TOPIC=${APNS_TOPIC:-com.talkclaw.TalkClaw}
     volumes:
       - app_data:/data
       - sandbox_sock:/sandbox

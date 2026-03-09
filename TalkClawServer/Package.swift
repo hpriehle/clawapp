@@ -9,6 +9,7 @@ let package = Package(
         .package(url: "https://github.com/vapor/fluent.git", from: "4.11.0"),
         .package(url: "https://github.com/vapor/fluent-sqlite-driver.git", from: "4.7.0"),
         .package(url: "https://github.com/vapor/fluent-postgres-driver.git", from: "2.9.0"),
+        .package(url: "https://github.com/swift-server-community/APNSwift.git", from: "5.0.0"),
         .package(path: "../SharedModels"),
     ],
     targets: [
@@ -20,6 +21,8 @@ let package = Package(
                 .product(name: "FluentSQLiteDriver", package: "fluent-sqlite-driver"),
                 .product(name: "FluentPostgresDriver", package: "fluent-postgres-driver"),
                 .product(name: "SharedModels", package: "SharedModels"),
+                .product(name: "APNSCore", package: "APNSwift"),
+                .product(name: "APNS", package: "APNSwift"),
             ]
         ),
         .testTarget(

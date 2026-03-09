@@ -3,6 +3,9 @@ import Fluent
 import FluentSQLiteDriver
 import FluentPostgresDriver
 import Foundation
+import APNS
+import APNSCore
+import Crypto
 
 func configure(_ app: Application) throws {
     // MARK: - Database
@@ -21,6 +24,7 @@ func configure(_ app: Application) throws {
     app.migrations.add(SimplifyAuth())
     app.migrations.add(CreateWidgetTables())
     app.migrations.add(AddWidgetSize())
+    app.migrations.add(CreateDeviceToken())
     try app.autoMigrate().wait()
 
     // MARK: - API Token
@@ -62,6 +66,7 @@ func configure(_ app: Application) throws {
         baseURL: Environment.get("OPENCLAW_URL") ?? "",
         token: Environment.get("OPENCLAW_TOKEN") ?? "",
         webhookSecret: Environment.get("OPENCLAW_WEBHOOK_SECRET") ?? "",
+        apiToken: apiToken,
         logger: app.logger,
         httpClient: app.http.client.shared
     )
@@ -69,6 +74,45 @@ func configure(_ app: Application) throws {
 
     let clientManager = ClientWSManager()
     app.storage[ClientWSManagerKey.self] = clientManager
+
+    // MARK: - APNs Push Notifications (optional — graceful no-op if not configured)
+
+    if let keyId = Environment.get("APNS_KEY_ID"),
+       let teamId = Environment.get("APNS_TEAM_ID"),
+       let keyBase64 = Environment.get("APNS_KEY_P8_BASE64"),
+       let keyData = Data(base64Encoded: keyBase64) {
+        let keyString = String(decoding: keyData, as: UTF8.self)
+        let topic = Environment.get("APNS_TOPIC") ?? "com.talkclaw.TalkClaw"
+        let envString = Environment.get("APNS_ENVIRONMENT") ?? "production"
+        let apnsEnv: APNSEnvironment = envString == "sandbox" ? .development : .production
+
+        let privateKey = try P256.Signing.PrivateKey(pemRepresentation: keyString)
+
+        let apnsClient = APNSClient(
+            configuration: .init(
+                authenticationMethod: .jwt(
+                    privateKey: privateKey,
+                    keyIdentifier: keyId,
+                    teamIdentifier: teamId
+                ),
+                environment: apnsEnv
+            ),
+            eventLoopGroupProvider: .shared(app.eventLoopGroup),
+            responseDecoder: JSONDecoder(),
+            requestEncoder: JSONEncoder()
+        )
+
+        app.storage[PushServiceKey.self] = PushNotificationService(
+            apnsClient: apnsClient,
+            topic: topic,
+            logger: app.logger
+        )
+        app.logger.notice("APNs push notifications enabled (env: \(envString))")
+
+        app.lifecycle.use(APNsLifecycleHandler())
+    } else {
+        app.logger.info("APNs not configured — push notifications disabled")
+    }
 
     // Sandbox client (Unix socket to isolated-vm sidecar)
     let sandboxSocket = Environment.get("SANDBOX_SOCKET") ?? "/sandbox/talkclaw-sandbox.sock"
@@ -102,6 +146,10 @@ struct APITokenKey: StorageKey {
     typealias Value = String
 }
 
+struct PushServiceKey: StorageKey {
+    typealias Value = PushNotificationService
+}
+
 extension Application {
     var channelClient: OpenClawChannelClient {
         storage[AIClientKey.self]!
@@ -117,5 +165,15 @@ extension Application {
 
     var apiToken: String {
         storage[APITokenKey.self]!
+    }
+
+    var pushService: PushNotificationService? {
+        storage[PushServiceKey.self]
+    }
+}
+
+struct APNsLifecycleHandler: LifecycleHandler {
+    func shutdown(_ app: Application) {
+        app.pushService?.shutdown()
     }
 }

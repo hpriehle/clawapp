@@ -156,6 +156,16 @@ public struct SendMessageRequest: Codable, Sendable {
     }
 }
 
+public struct RegisterDeviceTokenRequest: Codable, Sendable {
+    public let token: String
+    public let environment: String
+
+    public init(token: String, environment: String) {
+        self.token = token
+        self.environment = environment
+    }
+}
+
 public struct AttachmentInfo: Codable, Sendable {
     public let filename: String
     public let mimeType: String

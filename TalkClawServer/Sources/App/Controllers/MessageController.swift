@@ -134,7 +134,18 @@ struct MessageController: RouteCollection {
             // Proactive push — deliver to iOS via WS, no AI call
             manager.subscribeAll(to: sessionId)
             let dto = try message.toDTO()
-            await manager.sendToSession(.chatComplete(dto), sessionId: sessionId, logger: req.logger)
+            let delivered = await manager.sendToSession(.chatComplete(dto), sessionId: sessionId, logger: req.logger)
+
+            // Fallback to push notification if no WS clients are connected
+            if !delivered {
+                let session = try? await Session.find(sessionId, on: req.db)
+                await req.application.pushService?.sendPush(
+                    title: session?.title ?? "TalkClaw",
+                    body: String(dto.content.previewText.prefix(150)),
+                    sessionId: sessionId,
+                    db: req.db
+                )
+            }
         } else {
             // Normal user message — forward to AI (streaming response handled by sendChat)
             let channelClient = req.application.channelClient
