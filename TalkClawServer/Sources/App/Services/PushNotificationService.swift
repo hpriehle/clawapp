@@ -4,12 +4,19 @@ import APNS
 import APNSCore
 
 struct PushNotificationService: Sendable {
-    let apnsClient: APNSClient<JSONDecoder, JSONEncoder>
+    let sandboxClient: APNSClient<JSONDecoder, JSONEncoder>
+    let productionClient: APNSClient<JSONDecoder, JSONEncoder>
     let topic: String
     let logger: Logger
 
-    init(apnsClient: APNSClient<JSONDecoder, JSONEncoder>, topic: String, logger: Logger) {
-        self.apnsClient = apnsClient
+    init(
+        sandboxClient: APNSClient<JSONDecoder, JSONEncoder>,
+        productionClient: APNSClient<JSONDecoder, JSONEncoder>,
+        topic: String,
+        logger: Logger
+    ) {
+        self.sandboxClient = sandboxClient
+        self.productionClient = productionClient
         self.topic = topic
         self.logger = logger
     }
@@ -33,15 +40,15 @@ struct PushNotificationService: Sendable {
             )
 
             for token in tokens {
+                let client = token.environment == "sandbox" ? sandboxClient : productionClient
                 do {
-                    try await apnsClient.sendAlertNotification(
+                    try await client.sendAlertNotification(
                         alert,
                         deviceToken: token.token
                     )
-                    logger.info("Push sent to device \(token.token.prefix(8))...")
+                    logger.info("Push sent to device \(token.token.prefix(8))... (env: \(token.environment))")
                 } catch let error as APNSError {
                     logger.error("APNs error for token \(token.token.prefix(8))...: \(error)")
-                    // Remove invalid/unregistered tokens
                     if let reason = error.reason?.reason,
                        reason == "BadDeviceToken" || reason == "Unregistered" {
                         try? await token.delete(on: db)
@@ -57,7 +64,8 @@ struct PushNotificationService: Sendable {
     }
 
     func shutdown() {
-        try? apnsClient.syncShutdown()
+        try? sandboxClient.syncShutdown()
+        try? productionClient.syncShutdown()
     }
 }
 

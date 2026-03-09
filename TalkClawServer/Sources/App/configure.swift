@@ -83,19 +83,31 @@ func configure(_ app: Application) throws {
        let keyData = Data(base64Encoded: keyBase64) {
         let keyString = String(decoding: keyData, as: UTF8.self)
         let topic = Environment.get("APNS_TOPIC") ?? "com.talkclaw.TalkClaw"
-        let envString = Environment.get("APNS_ENVIRONMENT") ?? "production"
-        let apnsEnv: APNSEnvironment = envString == "sandbox" ? .development : .production
 
         let privateKey = try P256.Signing.PrivateKey(pemRepresentation: keyString)
 
-        let apnsClient = APNSClient(
+        let sandboxClient = APNSClient(
             configuration: .init(
                 authenticationMethod: .jwt(
                     privateKey: privateKey,
                     keyIdentifier: keyId,
                     teamIdentifier: teamId
                 ),
-                environment: apnsEnv
+                environment: .development
+            ),
+            eventLoopGroupProvider: .shared(app.eventLoopGroup),
+            responseDecoder: JSONDecoder(),
+            requestEncoder: JSONEncoder()
+        )
+
+        let productionClient = APNSClient(
+            configuration: .init(
+                authenticationMethod: .jwt(
+                    privateKey: privateKey,
+                    keyIdentifier: keyId,
+                    teamIdentifier: teamId
+                ),
+                environment: .production
             ),
             eventLoopGroupProvider: .shared(app.eventLoopGroup),
             responseDecoder: JSONDecoder(),
@@ -103,11 +115,12 @@ func configure(_ app: Application) throws {
         )
 
         app.storage[PushServiceKey.self] = PushNotificationService(
-            apnsClient: apnsClient,
+            sandboxClient: sandboxClient,
+            productionClient: productionClient,
             topic: topic,
             logger: app.logger
         )
-        app.logger.notice("APNs push notifications enabled (env: \(envString))")
+        app.logger.notice("APNs push notifications enabled (sandbox + production)")
 
         app.lifecycle.use(APNsLifecycleHandler())
     } else {
